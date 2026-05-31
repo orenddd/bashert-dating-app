@@ -40,8 +40,52 @@ const REL_LABELS: Record<string, string> = {
   hiloni: 'חילוני', masorti: 'מסורתי', dati_light: 'דתי-לייט', dati: 'דתי', haredi: 'חרדי',
 }
 const GOAL_LABELS: Record<string, string> = {
-  marriage: '💍 נישואים', serious: '❤️ רציני', dating: '☕ היכרות',
-  friendship: '🤝 חברות', not_sure: '🤷 עדיין לא יודע/ת', open: '🌊 פתוח/ה',
+  marriage: '💍 נישואים', serious_easy: '☕ רציני', chapter2: '🌱 פרק ב׳',
+  chemistry: '✨ כימיה', dating: '😊 היכרות', just_looking: '👀 מסתכל',
+  serious: '❤️ רציני', friendship: '🤝 חברות', open: '🌊 פתוח/ה',
+}
+const COMMUNITY_LABELS: Record<string, string> = {
+  ashkenazi: 'אשכנזי', sephardic: 'ספרדי', mizrahi: 'מזרחי',
+  yemenite: 'תימני', mixed: 'מעורב', other: 'אחר',
+}
+const CHILDREN_LABELS: Record<string, string> = {
+  no_children: 'ללא ילדים', has_children: 'הורה',
+}
+const FRIDAY_LABELS: Record<string, string> = {
+  family_kiddush: '🕯️ שישי אצל ההורים',
+  friends_dinner: '🥂 ארוחה עם חברים',
+  takeaway_netflix: '🍕 נטפליקס + טייק אוואי',
+}
+const SATURDAY_LABELS: Record<string, string> = {
+  beach_matkot: '🏖️ ים ומטקות',
+  cafe: '☕ בית קפה',
+  synagogue: '🕍 בית כנסת',
+  sleep_late: '😴 נוחר עד 12',
+}
+const ROMANTIC_LABELS: Record<string, string> = {
+  cuddle_movie: '🛋️ להתכרבל עם סרט',
+  walk_talk: '🚶 טיול ושיחה',
+  long_hug: '🤗 חיבוק ארוך',
+  midday_msg: '💬 הודעה באמצע היום',
+  car_music: '🚗 נסיעה עם מוסיקה',
+  shared_laugh: '😂 צחוק משותף',
+  shawarma: '🌯 שווארמה ב-11 בלילה',
+}
+const HOBBY_LABELS: Record<string, string> = {
+  soccer: '⚽ כדורגל', sport: '🏃 ספורט', torah: '📜 תורה',
+  cooking: '👨‍🍳 בישול', nightlife: '🍽️ חיי לילה', series: '📺 סדרות',
+  music: '🎵 מוסיקה', reading: '📚 קריאה', tech: '💻 טכנולוגיה',
+  art: '🎨 אמנות', meditation: '🧘 מדיטציה', bbq: '🔥 על האש',
+  travel: '✈️ טיולים', chill: '🌊 זורם', politics: '🗞️ פוליטיקה',
+}
+const LANG_LABELS: Record<string, string> = {
+  he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', fr: '🇫🇷 צרפתית',
+  ru: '🇷🇺 רוסית', ar: '🌙 ערבית', es: '🇪🇸 ספרדית',
+  am: '🇪🇹 אמהרית', yi: '✡️ יידיש', de: '🇩🇪 גרמנית', it: '🇮🇹 איטלקית',
+}
+
+function openQ(profile: DbProfile): Record<string, string> {
+  return (profile.open_questions ?? {}) as Record<string, string>
 }
 
 // ─── Shared action bar ────────────────────────────────────────────────────────
@@ -103,7 +147,10 @@ function Actions({
 function CardMagazine({ profile, photos, isLikedState, sentStatus, onLike, onMessage }: CardProps) {
   const primary = photos.find(p => p.is_primary) ?? photos[0]
   const age = getAge(profile)
-  const goal = profile.relationship_goal?.[0]
+  const goals = profile.relationship_goal ?? []
+  const romantic = (profile.romantic_vision ?? []).slice(0, 2)
+  const oq = openQ(profile)
+  const bio = oq.bio || profile.bio
 
   return (
     <Link href={`/profile/${profile.user_id}`} className="block relative rounded-3xl overflow-hidden group cursor-pointer">
@@ -112,7 +159,7 @@ function CardMagazine({ profile, photos, isLikedState, sentStatus, onLike, onMes
           ? <img src={primary.url} alt={profile.first_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           : <div className="w-full h-full flex items-center justify-center text-8xl text-[#D4D4D4]">👤</div>
         }
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
       </div>
 
       {/* top badges */}
@@ -129,11 +176,13 @@ function CardMagazine({ profile, photos, isLikedState, sentStatus, onLike, onMes
             </span>
           )}
         </div>
-        {goal && (
-          <span className="bg-white/20 backdrop-blur-md text-white text-[11px] px-2.5 py-1 rounded-full">
-            {GOAL_LABELS[goal] ?? goal}
-          </span>
-        )}
+        <div className="flex flex-col gap-1.5 items-end">
+          {goals.slice(0, 2).map(g => (
+            <span key={g} className="bg-white/20 backdrop-blur-md text-white text-[11px] px-2.5 py-1 rounded-full">
+              {GOAL_LABELS[g] ?? g}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* bottom info */}
@@ -143,15 +192,30 @@ function CardMagazine({ profile, photos, isLikedState, sentStatus, onLike, onMes
           {profile.city && (
             <span className="text-white/75 text-sm flex items-center gap-1"><MapPin className="w-3 h-3" />{profile.city}</span>
           )}
+          {profile.occupation && (
+            <span className="text-white/75 text-sm">· {profile.occupation}</span>
+          )}
           {profile.religious_level && (
-            <span className="text-white/75 text-sm">{REL_LABELS[profile.religious_level]}</span>
+            <span className="text-white/60 text-sm">· {REL_LABELS[profile.religious_level]}</span>
           )}
         </div>
-        {profile.bio && (
-          <p className="text-white/70 text-sm mt-2 line-clamp-2 leading-relaxed">{profile.bio}</p>
+
+        {/* romantic vision tags */}
+        {romantic.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {romantic.map(r => (
+              <span key={r} className="bg-white/15 backdrop-blur-sm text-white/90 text-xs px-2.5 py-1 rounded-full">
+                {ROMANTIC_LABELS[r] ?? r}
+              </span>
+            ))}
+          </div>
         )}
 
-        {/* action pills — minimal */}
+        {bio && (
+          <p className="text-white/70 text-sm mt-2 line-clamp-2 leading-relaxed">{bio}</p>
+        )}
+
+        {/* action pills */}
         <div className="flex gap-2 mt-3" onClick={e => e.preventDefault()}>
           <button onClick={onLike}
             className={cn('flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all',
@@ -186,14 +250,16 @@ function CardMagazine({ profile, photos, isLikedState, sentStatus, onLike, onMes
 function CardSplit({ profile, photos, isLikedState, sentStatus, onLike, onMessage }: CardProps) {
   const primary = photos.find(p => p.is_primary) ?? photos[0]
   const age = getAge(profile)
-  const seekingText = (profile.open_questions as Record<string, string>)?.seeking
+  const oq = openQ(profile)
+  const bio = oq.seeking || oq.bio || profile.bio
+  const langs = (profile.languages ?? []).slice(0, 3)
 
   return (
     <div className="bg-white rounded-3xl border border-[#E5E5E5] overflow-hidden">
       <div className="flex">
         {/* Photo */}
         <Link href={`/profile/${profile.user_id}`} className="w-36 flex-shrink-0 relative">
-          <div className="h-full min-h-[220px] bg-[#F5F5F5]">
+          <div className="h-full min-h-[240px] bg-[#F5F5F5]">
             {primary
               ? <img src={primary.url} alt={profile.first_name} className="w-full h-full object-cover" />
               : <div className="w-full h-full flex items-center justify-center text-5xl text-[#D4D4D4]">👤</div>
@@ -212,13 +278,28 @@ function CardSplit({ profile, photos, isLikedState, sentStatus, onLike, onMessag
                 {profile.first_name}{age ? `, ${age}` : ''}
               </h2>
             </Link>
-            {profile.city && (
-              <p className="text-[#A3A3A3] text-xs flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3 h-3" />{profile.city}
-              </p>
-            )}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+              {profile.city && (
+                <span className="text-[#A3A3A3] text-xs flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />{profile.city}
+                </span>
+              )}
+              {profile.occupation && (
+                <span className="text-[#737373] text-xs">· {profile.occupation}</span>
+              )}
+            </div>
           </div>
 
+          {/* Goals */}
+          <div className="flex flex-wrap gap-1.5">
+            {(profile.relationship_goal ?? []).map(g => (
+              <span key={g} className="bg-[#0A0A0A] text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
+                {GOAL_LABELS[g] ?? g}
+              </span>
+            ))}
+          </div>
+
+          {/* Tags row */}
           <div className="flex flex-wrap gap-1.5">
             {profile.religious_level && (
               <span className="bg-[#F5F5F5] text-[#0A0A0A] text-[11px] font-medium px-2 py-0.5 rounded-full">
@@ -230,6 +311,11 @@ function CardSplit({ profile, photos, isLikedState, sentStatus, onLike, onMessag
                 {profile.height_cm} ס״מ
               </span>
             )}
+            {profile.children_status && profile.children_status !== 'no_children' && (
+              <span className="bg-[#F5F5F5] text-[#737373] text-[11px] px-2 py-0.5 rounded-full">
+                {CHILDREN_LABELS[profile.children_status]}
+              </span>
+            )}
             {profile.marital_status && profile.marital_status !== 'single' && (
               <span className="bg-[#F5F5F5] text-[#737373] text-[11px] px-2 py-0.5 rounded-full">
                 {profile.marital_status === 'divorced' ? 'גרוש/ה' : 'אלמן/ה'}
@@ -237,17 +323,16 @@ function CardSplit({ profile, photos, isLikedState, sentStatus, onLike, onMessag
             )}
           </div>
 
-          {profile.relationship_goal?.slice(0, 1).map(g => (
-            <p key={g} className="text-[#0A0A0A] text-xs font-medium">
-              {GOAL_LABELS[g] ?? g}
+          {/* Languages */}
+          {langs.length > 0 && (
+            <p className="text-[#A3A3A3] text-[11px]">
+              {langs.map(l => LANG_LABELS[l] ?? l).join(' · ')}
             </p>
-          ))}
+          )}
 
-          {seekingText ? (
-            <p className="text-[#737373] text-xs leading-relaxed line-clamp-3 flex-1">{seekingText}</p>
-          ) : profile.bio ? (
-            <p className="text-[#737373] text-xs leading-relaxed line-clamp-3 flex-1">{profile.bio}</p>
-          ) : null}
+          {bio && (
+            <p className="text-[#737373] text-xs leading-relaxed line-clamp-3 flex-1">{bio}</p>
+          )}
 
           {profile.is_verified && (
             <span className="flex items-center gap-1 text-[11px] text-[#0A0A0A] font-medium w-fit">
@@ -269,7 +354,12 @@ function CardSplit({ profile, photos, isLikedState, sentStatus, onLike, onMessag
 function CardQuote({ profile, photos, isLikedState, sentStatus, onLike, onMessage }: CardProps) {
   const primary = photos.find(p => p.is_primary) ?? photos[0]
   const age = getAge(profile)
-  const bio = profile.bio || (profile.open_questions as Record<string, string>)?.seeking
+  const oq = openQ(profile)
+  const bio = oq.bio || profile.bio
+  const seeking = oq.seeking
+  const friday = (profile.friday_night ?? []).slice(0, 1)
+  const saturday = (profile.saturday_morning ?? []).slice(0, 1)
+  const langs = (profile.languages ?? []).slice(0, 3)
 
   return (
     <div className="bg-white rounded-3xl border border-[#E5E5E5] overflow-hidden">
@@ -280,12 +370,13 @@ function CardQuote({ profile, photos, isLikedState, sentStatus, onLike, onMessag
             ? <img src={primary.url} alt={profile.first_name} className="w-full h-full object-cover" />
             : <div className="w-full h-full flex items-center justify-center text-6xl text-[#D4D4D4]">👤</div>
           }
-          <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent" />
           <div className="absolute inset-0 flex items-end p-5">
             <div>
               <h2 className="text-white text-2xl font-black">{profile.first_name}{age ? `, ${age}` : ''}</h2>
-              <div className="flex gap-3 mt-1">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
                 {profile.city && <span className="text-white/70 text-sm flex items-center gap-1"><MapPin className="w-3 h-3" />{profile.city}</span>}
+                {profile.occupation && <span className="text-white/60 text-sm">· {profile.occupation}</span>}
                 {profile.is_online && <span className="text-green-400 text-sm flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-400 rounded-full" />מחובר/ת</span>}
               </div>
             </div>
@@ -294,13 +385,36 @@ function CardQuote({ profile, photos, isLikedState, sentStatus, onLike, onMessag
       </Link>
 
       <div className="p-5 space-y-4">
-        {/* Big quote */}
+        {/* Big bio quote */}
         {bio && (
           <div className="relative">
             <span className="text-5xl text-[#E5E5E5] font-serif absolute -top-2 -start-1 leading-none">"</span>
             <p className="text-[#0A0A0A] text-base font-medium leading-relaxed ps-6 line-clamp-3 italic">
               {bio}
             </p>
+          </div>
+        )}
+
+        {/* Seeking */}
+        {seeking && (
+          <p className="text-[#737373] text-sm leading-relaxed line-clamp-2 border-s-2 border-[#E5E5E5] ps-3">
+            {seeking}
+          </p>
+        )}
+
+        {/* Friday/Saturday */}
+        {(friday.length > 0 || saturday.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {friday.map(f => (
+              <span key={f} className="bg-[#FFF9F0] text-[#7A5500] text-xs px-3 py-1.5 rounded-full border border-[#FFE5B0]">
+                {FRIDAY_LABELS[f] ?? f}
+              </span>
+            ))}
+            {saturday.map(s => (
+              <span key={s} className="bg-[#F0F7FF] text-[#1A4F8A] text-xs px-3 py-1.5 rounded-full border border-[#C0D9F5]">
+                {SATURDAY_LABELS[s] ?? s}
+              </span>
+            ))}
           </div>
         )}
 
@@ -311,13 +425,20 @@ function CardQuote({ profile, photos, isLikedState, sentStatus, onLike, onMessag
               {REL_LABELS[profile.religious_level]}
             </span>
           )}
-          {profile.relationship_goal?.slice(0, 1).map(g => (
+          {profile.community_background && profile.community_background !== 'mixed' && (
+            <span className="border border-[#E5E5E5] text-[#737373] text-xs px-3 py-1 rounded-full">
+              {COMMUNITY_LABELS[profile.community_background] ?? profile.community_background}
+            </span>
+          )}
+          {(profile.relationship_goal ?? []).slice(0, 2).map(g => (
             <span key={g} className="border border-[#0A0A0A] text-[#0A0A0A] text-xs px-3 py-1 rounded-full font-medium">
               {GOAL_LABELS[g] ?? g}
             </span>
           ))}
-          {profile.languages?.slice(0, 2).map(l => (
-            <span key={l} className="border border-[#E5E5E5] text-[#737373] text-xs px-3 py-1 rounded-full">{l}</span>
+          {langs.map(l => (
+            <span key={l} className="border border-[#E5E5E5] text-[#737373] text-xs px-3 py-1 rounded-full">
+              {LANG_LABELS[l] ?? l}
+            </span>
           ))}
           {profile.is_verified && (
             <span className="flex items-center gap-1 border border-[#E5E5E5] text-xs px-3 py-1 rounded-full text-[#0A0A0A]">
@@ -338,7 +459,11 @@ function CardMosaic({ profile, photos, isLikedState, sentStatus, onLike, onMessa
   const primary = photos.find(p => p.is_primary) ?? photos[0]
   const extras = photos.filter(p => p !== primary && p.media_type === 'image').slice(0, 2)
   const age = getAge(profile)
-  const goal = profile.relationship_goal?.[0]
+  const goals = profile.relationship_goal ?? []
+  const hobbies = profile.hobbies ?? []
+  const romantic = (profile.romantic_vision ?? []).slice(0, 3)
+  const oq = openQ(profile)
+  const seeking = oq.seeking
 
   return (
     <div className="bg-white rounded-3xl border border-[#E5E5E5] overflow-hidden">
@@ -370,6 +495,7 @@ function CardMosaic({ profile, photos, isLikedState, sentStatus, onLike, onMessa
 
       {/* Info */}
       <div className="p-4 space-y-3">
+        {/* Name + badges */}
         <div className="flex items-start justify-between gap-2">
           <div>
             <Link href={`/profile/${profile.user_id}`}>
@@ -387,14 +513,16 @@ function CardMosaic({ profile, photos, isLikedState, sentStatus, onLike, onMessa
               {profile.is_verified && <span className="text-[#0A0A0A] text-xs flex items-center gap-1"><Shield className="w-3 h-3" />מאומת</span>}
             </div>
           </div>
-          {goal && (
-            <span className="bg-[#0A0A0A] text-white text-[11px] font-medium px-3 py-1 rounded-full whitespace-nowrap flex-shrink-0">
-              {GOAL_LABELS[goal] ?? goal}
-            </span>
-          )}
+          <div className="flex flex-col gap-1 items-end flex-shrink-0">
+            {goals.slice(0, 2).map(g => (
+              <span key={g} className="bg-[#0A0A0A] text-white text-[10px] font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                {GOAL_LABELS[g] ?? g}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* 2-column info grid */}
+        {/* 4-column info grid */}
         <div className="grid grid-cols-2 gap-2">
           {profile.religious_level && (
             <div className="bg-[#F5F5F5] rounded-2xl p-3">
@@ -402,22 +530,52 @@ function CardMosaic({ profile, photos, isLikedState, sentStatus, onLike, onMessa
               <p className="text-[#0A0A0A] text-sm font-medium mt-0.5">{REL_LABELS[profile.religious_level]}</p>
             </div>
           )}
-          {profile.height_cm && (
+          {profile.occupation ? (
+            <div className="bg-[#F5F5F5] rounded-2xl p-3">
+              <p className="text-[10px] text-[#A3A3A3] uppercase tracking-wide">עיסוק</p>
+              <p className="text-[#0A0A0A] text-sm font-medium mt-0.5 truncate">{profile.occupation}</p>
+            </div>
+          ) : profile.height_cm ? (
             <div className="bg-[#F5F5F5] rounded-2xl p-3">
               <p className="text-[10px] text-[#A3A3A3] uppercase tracking-wide">גובה</p>
               <p className="text-[#0A0A0A] text-sm font-medium mt-0.5">{profile.height_cm} ס״מ</p>
             </div>
+          ) : null}
+          {profile.education && (
+            <div className="bg-[#F5F5F5] rounded-2xl p-3 col-span-2">
+              <p className="text-[10px] text-[#A3A3A3] uppercase tracking-wide">השכלה</p>
+              <p className="text-[#0A0A0A] text-sm font-medium mt-0.5 truncate">{profile.education}</p>
+            </div>
           )}
         </div>
 
-        {profile.hobbies?.length > 0 && (
+        {/* Seeking */}
+        {seeking && (
+          <p className="text-[#737373] text-xs leading-relaxed line-clamp-2 border-s-2 border-[#E5E5E5] ps-3">{seeking}</p>
+        )}
+
+        {/* Hobbies */}
+        {hobbies.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {profile.hobbies.slice(0, 4).map(h => (
-              <span key={h} className="bg-[#F5F5F5] text-[#737373] text-xs px-2.5 py-1 rounded-full">{h}</span>
+            {hobbies.slice(0, 5).map(h => (
+              <span key={h} className="bg-[#F5F5F5] text-[#737373] text-xs px-2.5 py-1 rounded-full">
+                {HOBBY_LABELS[h] ?? h}
+              </span>
             ))}
-            {profile.hobbies.length > 4 && (
-              <span className="text-[#A3A3A3] text-xs self-center">+{profile.hobbies.length - 4}</span>
+            {hobbies.length > 5 && (
+              <span className="text-[#A3A3A3] text-xs self-center">+{hobbies.length - 5}</span>
             )}
+          </div>
+        )}
+
+        {/* Romantic vision */}
+        {romantic.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {romantic.map(r => (
+              <span key={r} className="bg-[#FFF0F3] text-[#8B1A2E] text-xs px-2.5 py-1 rounded-full border border-[#FFD0DA]">
+                {ROMANTIC_LABELS[r] ?? r}
+              </span>
+            ))}
           </div>
         )}
 
@@ -428,20 +586,27 @@ function CardMosaic({ profile, photos, isLikedState, sentStatus, onLike, onMessa
   )
 }
 
-// ─── Variant 5: Minimal — text-first, small circle photo ─────────────────────
+// ─── Variant 5: Minimal — dark card, text-rich ───────────────────────────────
 function CardMinimal({ profile, photos, isLikedState, sentStatus, onLike, onMessage }: CardProps) {
   const primary = photos.find(p => p.is_primary) ?? photos[0]
   const age = getAge(profile)
-  const seekingText = (profile.open_questions as Record<string, string>)?.seeking
+  const oq = openQ(profile)
+  const bio = oq.bio || profile.bio
+  const seeking = oq.seeking
+  const dealbreaker = oq.dealbreaker
   const extraPhotos = photos.filter(p => p.media_type === 'image').slice(1, 4)
+  const friday = (profile.friday_night ?? []).slice(0, 2)
+  const saturday = (profile.saturday_morning ?? []).slice(0, 1)
+  const goals = profile.relationship_goal ?? []
+  const langs = (profile.languages ?? []).slice(0, 3)
 
   return (
     <div className="bg-[#0A0A0A] rounded-3xl overflow-hidden text-white">
       <div className="p-5 space-y-4">
         {/* Header row */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <Link href={`/profile/${profile.user_id}`} className="flex-shrink-0">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-[#222]">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-[#222]">
               {primary
                 ? <img src={primary.url} alt="" className="w-full h-full object-cover" />
                 : <div className="w-full h-full flex items-center justify-center text-3xl">👤</div>
@@ -449,22 +614,37 @@ function CardMinimal({ profile, photos, isLikedState, sentStatus, onLike, onMess
             </div>
           </Link>
           <div className="flex-1 min-w-0">
-            <Link href={`/profile/${profile.user_id}`}>
-              <h2 className="text-white text-xl font-bold hover:text-white/80">
-                {profile.first_name}{age ? `, ${age}` : ''}
-              </h2>
-            </Link>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <div className="flex items-start justify-between">
+              <Link href={`/profile/${profile.user_id}`}>
+                <h2 className="text-white text-xl font-bold hover:text-white/80">
+                  {profile.first_name}{age ? `, ${age}` : ''}
+                </h2>
+              </Link>
+              {profile.is_verified && <Shield className="w-4 h-4 text-white/40 flex-shrink-0 mt-1" />}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
               {profile.city && (
                 <span className="text-white/50 text-xs flex items-center gap-1"><MapPin className="w-3 h-3" />{profile.city}</span>
               )}
+              {profile.occupation && (
+                <span className="text-white/40 text-xs">· {profile.occupation}</span>
+              )}
               {profile.is_online && <span className="text-green-400 text-xs">● מחובר/ת</span>}
             </div>
+            {/* Goals inline */}
+            {goals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {goals.slice(0, 2).map(g => (
+                  <span key={g} className="border border-white/40 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                    {GOAL_LABELS[g] ?? g}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          {profile.is_verified && <Shield className="w-4 h-4 text-white/50 flex-shrink-0" />}
         </div>
 
-        {/* Tags */}
+        {/* Tags row */}
         <div className="flex flex-wrap gap-2">
           {profile.religious_level && (
             <span className="border border-white/20 text-white/70 text-xs px-3 py-1 rounded-full">
@@ -472,25 +652,52 @@ function CardMinimal({ profile, photos, isLikedState, sentStatus, onLike, onMess
             </span>
           )}
           {profile.height_cm && (
-            <span className="border border-white/20 text-white/70 text-xs px-3 py-1 rounded-full">
+            <span className="border border-white/20 text-white/60 text-xs px-3 py-1 rounded-full">
               {profile.height_cm} ס״מ
             </span>
           )}
-          {profile.relationship_goal?.slice(0, 1).map(g => (
-            <span key={g} className="border border-white/40 text-white text-xs px-3 py-1 rounded-full font-medium">
-              {GOAL_LABELS[g] ?? g}
+          {profile.children_status && profile.children_status !== 'no_children' && (
+            <span className="border border-white/20 text-white/60 text-xs px-3 py-1 rounded-full">
+              {CHILDREN_LABELS[profile.children_status]}
             </span>
-          ))}
-          {profile.languages?.slice(0, 2).map(l => (
-            <span key={l} className="border border-white/20 text-white/60 text-xs px-3 py-1 rounded-full">{l}</span>
+          )}
+          {langs.map(l => (
+            <span key={l} className="border border-white/15 text-white/50 text-xs px-3 py-1 rounded-full">
+              {LANG_LABELS[l] ?? l}
+            </span>
           ))}
         </div>
 
-        {/* Seeking text or bio */}
-        {(seekingText || profile.bio) && (
-          <p className="text-white/75 text-sm leading-relaxed line-clamp-3">
-            {seekingText || profile.bio}
-          </p>
+        {/* Bio */}
+        {bio && (
+          <p className="text-white/75 text-sm leading-relaxed line-clamp-2">{bio}</p>
+        )}
+
+        {/* Seeking */}
+        {seeking && (
+          <div className="border-s-2 border-white/20 ps-3">
+            <p className="text-white/60 text-xs leading-relaxed line-clamp-2">{seeking}</p>
+          </div>
+        )}
+
+        {/* Friday / Saturday */}
+        {(friday.length > 0 || saturday.length > 0) && (
+          <div className="space-y-1.5">
+            {friday.map(f => (
+              <p key={f} className="text-white/55 text-xs">{FRIDAY_LABELS[f] ?? f}</p>
+            ))}
+            {saturday.map(s => (
+              <p key={s} className="text-white/55 text-xs">{SATURDAY_LABELS[s] ?? s}</p>
+            ))}
+          </div>
+        )}
+
+        {/* Dealbreaker */}
+        {dealbreaker && (
+          <div className="bg-white/5 rounded-xl p-3">
+            <p className="text-white/40 text-[10px] uppercase tracking-wide mb-0.5">deal-breaker</p>
+            <p className="text-white/65 text-xs leading-relaxed line-clamp-2">{dealbreaker}</p>
+          </div>
         )}
 
         {/* Extra photos strip */}
@@ -667,7 +874,7 @@ export default function DiscoverPage() {
                       return (
                         <button key={o} onClick={() => setFilters(f => ({ ...f, [key]: sel ? (f[key] as string[]).filter(x => x !== o) : [...(f[key] as string[] || []), o] }))}
                           className={`px-3 py-1.5 rounded-full text-sm border transition-all ${sel ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]' : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'}`}>
-                          {(labels as Record<string, string>)[o]}
+                          {(labels as unknown as Record<string, string>)[o]}
                         </button>
                       )
                     })}
