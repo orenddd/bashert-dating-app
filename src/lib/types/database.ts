@@ -7,6 +7,10 @@ export type ChildrenStatus = 'no_children' | 'has_children' | 'wants_children' |
 export type SubscriptionTier = 'free' | 'gold' | 'platinum'
 export type Gender = 'male' | 'female' | 'other'
 export type SynagogueAttendance = 'never' | 'holidays' | 'monthly' | 'weekly' | 'daily'
+export type MaritalStatus = 'single' | 'divorced' | 'widowed'
+export type ChildrenFuture = '' | 'want_must' | 'want_sometime' | 'undecided' | 'dont_want' | 'have_maybe_more' | 'have_enough'
+export type SeekingWithKids = '' | 'yes' | 'no' | 'dont_mind'
+export type MediaType = 'image' | 'video' | 'audio'
 
 export interface DbProfile {
   id: string
@@ -17,6 +21,8 @@ export interface DbProfile {
   gender: Gender
   seeking: Gender | 'both'
   date_of_birth: string
+  birth_year: number | null
+  marital_status: MaritalStatus
   city: string
   state: string
   country: string
@@ -33,8 +39,27 @@ export interface DbProfile {
   hebrew_fluency: HebrewFluency
   aliyah_plan: AliyahPlan
   children_status: ChildrenStatus
+  children_future: ChildrenFuture
   wants_children: boolean | null
   height_cm: number | null
+  phone_number: string
+  relationship_goal: string[]
+  seeking_status: string[]
+  seeking_with_kids: SeekingWithKids
+  age_pref_min: number
+  age_pref_max: number
+  distance_pref_km: number
+  residence_intent: string[]
+  languages: string[]
+  romantic_vision: string[]
+  friday_night: string[]
+  saturday_morning: string[]
+  hobbies: string[]
+  open_questions: Record<string, string>
+  flight_mode_active: boolean
+  flight_mode_city: string
+  flight_mode_lat: number | null
+  flight_mode_lng: number | null
   is_verified: boolean
   is_online: boolean
   last_seen: string
@@ -53,6 +78,7 @@ export interface DbPhoto {
   thumbnail_url: string
   is_primary: boolean
   order_index: number
+  media_type: MediaType
   created_at: string
 }
 

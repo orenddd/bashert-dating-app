@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import type { Session } from '@supabase/supabase-js'
+import type { Session, Provider } from '@supabase/supabase-js'
 import type { AuthUser } from '@/lib/types/app'
 import { createClient } from '@/lib/supabase/client'
 import { fetchCurrentUserProfile, upsertProfile } from '@/lib/api/profiles'
@@ -11,6 +11,7 @@ interface AuthContextType {
   session: Session | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithProvider: (provider: Provider) => Promise<void>
   register: (email: string, password: string, data: Record<string, unknown>) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (data: Partial<AuthUser['profile']>) => Promise<void>
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   isLoading: true,
   login: async () => {},
+  loginWithProvider: async () => {},
   register: async () => {},
   logout: async () => {},
   updateProfile: async () => {},
@@ -65,6 +67,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error
   }
 
+  const loginWithProvider = async (provider: Provider) => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+    if (error) throw error
+  }
+
   const register = async (email: string, password: string, data: Record<string, unknown>) => {
     const { data: authData, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
@@ -75,27 +87,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         first_name: String(data.first_name ?? ''),
         last_name: String(data.last_name ?? ''),
         display_name: `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim(),
-        gender: (data.gender as 'male' | 'female' | 'other') ?? 'other',
-        seeking: (data.seeking as 'male' | 'female' | 'both') ?? 'both',
-        date_of_birth: String(data.date_of_birth ?? ''),
+        phone_number: String(data.phone_number ?? ''),
+        gender: 'other',
+        seeking: 'both',
+        date_of_birth: '',
+        birth_year: null,
+        marital_status: 'single',
         city: '',
         state: '',
-        country: 'US',
+        country: 'IL',
         latitude: null,
         longitude: null,
         bio: '',
         occupation: '',
         education: '',
-        religious_level: (data.religious_level as 'hiloni' | 'masorti' | 'dati_light' | 'dati' | 'haredi') ?? 'masorti',
-        shomer_shabbat: Boolean(data.shomer_shabbat ?? false),
-        kosher_level: (data.kosher_level as 'none' | 'kosher_home' | 'kosher_out' | 'strict') ?? 'none',
+        religious_level: 'masorti',
+        shomer_shabbat: false,
+        kosher_level: 'none',
         synagogue_attendance: 'monthly',
-        community_background: (data.community_background as 'ashkenazi' | 'sephardic' | 'mizrahi' | 'yemenite' | 'mixed' | 'other') ?? 'mixed',
-        hebrew_fluency: (data.hebrew_fluency as 'none' | 'basic' | 'conversational' | 'fluent' | 'native') ?? 'none',
+        community_background: 'mixed',
+        hebrew_fluency: 'native',
         aliyah_plan: 'no',
         children_status: 'no_children',
+        children_future: '',
         wants_children: null,
         height_cm: null,
+        relationship_goal: [],
+        seeking_status: [],
+        seeking_with_kids: '',
+        age_pref_min: 18,
+        age_pref_max: 60,
+        distance_pref_km: 80,
+        residence_intent: [],
+        languages: [],
+        romantic_vision: [],
+        friday_night: [],
+        saturday_morning: [],
+        hobbies: [],
+        open_questions: {},
+        flight_mode_active: false,
+        flight_mode_city: '',
+        flight_mode_lat: null,
+        flight_mode_lng: null,
         is_verified: false,
         is_online: true,
         last_seen: new Date().toISOString(),
@@ -122,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, session, isLoading, login, loginWithProvider, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

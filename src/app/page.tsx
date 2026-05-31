@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { Heart } from 'lucide-react'
 import { HeroSection } from '@/components/landing/HeroSection'
 import { FeaturesSection } from '@/components/landing/FeaturesSection'
 import { TestimonialsSection } from '@/components/landing/TestimonialsSection'
@@ -13,8 +12,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
-          <Heart className="w-7 h-7 text-[#e8566c] fill-[#e8566c]" />
-          <span className="text-2xl font-bold text-white">Bashert</span>
+          <span className="text-2xl font-bold text-white tracking-tight">מצאתי אותך</span>
         </Link>
         <div className="flex items-center gap-4">
           <LangToggle className="text-white hover:text-white/80" />
@@ -23,7 +21,7 @@ export default function LandingPage() {
           </Link>
           <Link
             href="/register"
-            className="bg-[#e8566c] hover:bg-[#c93a52] text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
+            className="bg-white text-black text-sm font-bold px-4 py-2 rounded-full transition-colors hover:bg-white/90"
           >
             הצטרף בחינם
           </Link>

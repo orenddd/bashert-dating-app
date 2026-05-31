@@ -20,8 +20,8 @@ const frankRuhl = Frank_Ruhl_Libre({
 })
 
 export const metadata: Metadata = {
-  title: 'Bashert — Jewish Dating',
-  description: 'Jewish dating for the American Hebrew-speaking community',
+  title: 'מצאתי אותך — הכרויות',
+  description: 'אפליקציית ההיכרויות הישראלית — מצא את הזיווג שלך',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

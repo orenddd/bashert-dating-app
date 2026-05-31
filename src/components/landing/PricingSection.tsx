@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n'
-import { Check, Crown } from 'lucide-react'
+import { Check } from 'lucide-react'
 
 export function PricingSection() {
   const { t } = useTranslation()
@@ -40,9 +40,9 @@ export function PricingSection() {
     <section className="py-24 bg-white">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-[#1a3a5c] mb-4">{t.landing.pricing_title}</h2>
+          <h2 className="text-4xl font-bold text-[#0A0A0A] mb-4">{t.landing.pricing_title}</h2>
           <p className="text-gray-500">{t.landing.pricing_subtitle}</p>
-          <div className="w-16 h-1 bg-[#c9a84c] mx-auto rounded-full mt-4" />
+          <div className="w-16 h-1 bg-[#0A0A0A] mx-auto rounded-full mt-4" />
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
@@ -51,27 +51,26 @@ export function PricingSection() {
               key={plan.name}
               className={`relative rounded-3xl p-8 border-2 transition-all duration-300 ${
                 plan.highlight
-                  ? 'border-[#c9a84c] bg-gradient-to-b from-[#1a3a5c] to-[#122840] text-white shadow-2xl scale-105'
-                  : 'border-gray-200 bg-white hover:border-[#c9a84c]/50 hover:shadow-lg'
+                  ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white shadow-2xl scale-105'
+                  : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-lg'
               }`}
             >
               {plan.badge && (
-                <div className="absolute -top-4 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 bg-[#c9a84c] text-white text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1">
-                  <Crown className="w-3 h-3" />
+                <div className="absolute -top-4 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 bg-[#0A0A0A] text-white text-xs font-bold px-4 py-1.5 rounded-full border border-white/20">
                   {plan.badge}
                 </div>
               )}
 
               <div className="mb-6">
-                <h3 className={`text-xl font-bold mb-1 ${plan.highlight ? 'text-[#c9a84c]' : 'text-[#1a3a5c]'}`}>
+                <h3 className={`text-xl font-bold mb-1 ${plan.highlight ? 'text-white' : 'text-[#0A0A0A]'}`}>
                   {plan.name}
                 </h3>
                 <div className="flex items-baseline gap-1">
-                  <span className={`text-4xl font-black ${plan.highlight ? 'text-white' : 'text-[#1a3a5c]'}`}>
+                  <span className={`text-4xl font-black ${plan.highlight ? 'text-white' : 'text-[#0A0A0A]'}`}>
                     {plan.price}
                   </span>
                   {plan.price !== t.subscription.free_price && (
-                    <span className={`text-sm ${plan.highlight ? 'text-white/60' : 'text-gray-400'}`}>
+                    <span className={`text-sm ${plan.highlight ? 'text-white/50' : 'text-gray-400'}`}>
                       {t.common.per_month}
                     </span>
                   )}
@@ -82,11 +81,11 @@ export function PricingSection() {
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-3">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      plan.highlight ? 'bg-[#c9a84c]' : 'bg-green-100'
+                      plan.highlight ? 'bg-white/20' : 'bg-gray-100'
                     }`}>
-                      <Check className={`w-3 h-3 ${plan.highlight ? 'text-[#1a3a5c]' : 'text-green-600'}`} />
+                      <Check className={`w-3 h-3 ${plan.highlight ? 'text-white' : 'text-gray-600'}`} />
                     </div>
-                    <span className={`text-sm ${plan.highlight ? 'text-white/90' : 'text-gray-600'}`}>
+                    <span className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-600'}`}>
                       {feature}
                     </span>
                   </li>
@@ -97,10 +96,8 @@ export function PricingSection() {
                 asChild
                 className={`w-full rounded-2xl font-bold py-3 ${
                   plan.highlight
-                    ? 'bg-[#c9a84c] hover:bg-[#a88530] text-[#1a3a5c]'
-                    : plan.tier === 'free'
-                    ? 'bg-[#e8566c] hover:bg-[#c93a52] text-white'
-                    : 'bg-[#1a3a5c] hover:bg-[#122840] text-white'
+                    ? 'bg-white text-black hover:bg-white/90'
+                    : 'bg-[#0A0A0A] text-white hover:bg-[#222]'
                 }`}
               >
                 <Link href="/register">{plan.cta}</Link>

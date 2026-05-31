@@ -3,271 +3,217 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Switch } from '@/components/ui/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/components/shared/AuthProvider'
-import { useTranslation } from '@/lib/i18n'
-import {
-  RegisterStep1Schema, RegisterStep2Schema, RegisterStep3Schema,
-  type RegisterStep1Data, type RegisterStep2Data, type RegisterStep3Data
-} from '@/lib/types/forms'
-import { Eye, EyeOff, Heart, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Phone } from 'lucide-react'
 import { toast } from 'sonner'
+import { z } from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 
-type Step = 1 | 2 | 3
+const RegisterSchema = z.object({
+  first_name: z.string().min(2, 'שם פרטי חייב להכיל לפחות 2 תווים'),
+  last_name: z.string().min(2, 'שם משפחה חייב להכיל לפחות 2 תווים'),
+  email: z.string().email('כתובת אימייל לא תקינה'),
+  phone_number: z.string().min(9, 'מספר טלפון לא תקין').regex(/^[0-9+\-() ]+$/, 'מספר טלפון לא תקין'),
+  password: z.string().min(8, 'הסיסמה חייבת להכיל לפחות 8 תווים'),
+  confirm_password: z.string(),
+}).refine(d => d.password === d.confirm_password, {
+  message: 'הסיסמאות אינן תואמות',
+  path: ['confirm_password'],
+})
+
+type RegisterData = z.infer<typeof RegisterSchema>
 
 export default function RegisterPage() {
-  const { t, isRTL } = useTranslation()
-  const { register: authRegister } = useAuth()
+  const { register: authRegister, loginWithProvider } = useAuth()
   const router = useRouter()
-  const [step, setStep] = useState<Step>(1)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<Partial<RegisterStep1Data & RegisterStep2Data & RegisterStep3Data>>({
-    shomer_shabbat: false,
+  const [socialLoading, setSocialLoading] = useState<string | null>(null)
+
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterData>({
+    resolver: zodResolver(RegisterSchema),
   })
 
-  const form1 = useForm<RegisterStep1Data>({ resolver: zodResolver(RegisterStep1Schema), defaultValues: formData })
-  const form2 = useForm<RegisterStep2Data>({
-    resolver: zodResolver(RegisterStep2Schema),
-    defaultValues: { shomer_shabbat: false, ...formData },
-  })
-  const form3 = useForm<RegisterStep3Data>({ resolver: zodResolver(RegisterStep3Schema) })
-
-  const handleStep1 = (data: RegisterStep1Data) => {
-    setFormData(prev => ({ ...prev, ...data }))
-    setStep(2)
-  }
-
-  const handleStep2 = (data: RegisterStep2Data) => {
-    setFormData(prev => ({ ...prev, ...data }))
-    setStep(3)
-  }
-
-  const handleStep3 = async (data: RegisterStep3Data) => {
+  const onSubmit = async (data: RegisterData) => {
     setIsLoading(true)
     try {
-      await authRegister(formData.email!, data.password, { ...formData, ...data })
+      await authRegister(data.email, data.password, {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone_number: data.phone_number,
+      })
       router.push('/setup-profile')
     } catch {
-      toast.error('שגיאה ביצירת החשבון. נסה שנית.')
+      toast.error('שגיאה ביצירת החשבון. אולי האימייל כבר קיים?')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const BackArrow = isRTL ? ArrowRight : ArrowLeft
-  const NextArrow = isRTL ? ArrowLeft : ArrowRight
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    setSocialLoading(provider)
+    try {
+      await loginWithProvider(provider)
+    } catch {
+      toast.error('שגיאה בהתחברות. נסה שנית.')
+      setSocialLoading(null)
+    }
+  }
 
   return (
-    <Card className="w-full max-w-md shadow-xl border-0">
+    <Card className="w-full max-w-md shadow-sm border border-[#E5E5E5] bg-white">
       <CardHeader className="text-center pb-4">
         <div className="flex justify-center mb-4">
-          <div className="w-14 h-14 bg-gradient-to-br from-[#e8566c] to-[#c93a52] rounded-2xl flex items-center justify-center">
-            <Heart className="w-7 h-7 text-white fill-white" />
+          <div className="w-12 h-12 bg-[#0A0A0A] rounded-2xl flex items-center justify-center">
+            <span className="text-white text-lg font-bold">♡</span>
           </div>
         </div>
-        <CardTitle className="text-2xl font-bold text-[#1a3a5c]">{t.auth.register_title}</CardTitle>
-        <CardDescription>{t.auth.register_subtitle}</CardDescription>
-        <div className="mt-4 space-y-2">
-          <Progress value={(step / 3) * 100} className="h-2" />
-          <p className="text-xs text-gray-400">
-            {t.auth.step_of} {step} {t.auth.of} 3 —{' '}
-            {step === 1 ? t.auth.step1_title : step === 2 ? t.auth.step2_title : t.auth.step3_title}
-          </p>
-        </div>
+        <CardTitle className="font-serif text-2xl font-black text-[#0A0A0A]">הצטרף למצאתי אותך</CardTitle>
+        <CardDescription className="text-[#737373]">מצא את הזיווג שלך — בחינם</CardDescription>
       </CardHeader>
 
-      <CardContent>
-        {/* Step 1 */}
-        {step === 1 && (
-          <form onSubmit={form1.handleSubmit(handleStep1)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>{t.auth.first_name}</Label>
-                <Input {...form1.register('first_name')} placeholder="שם פרטי" />
-                {form1.formState.errors.first_name && <p className="text-red-500 text-xs">{form1.formState.errors.first_name.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label>{t.auth.last_name}</Label>
-                <Input {...form1.register('last_name')} placeholder="שם משפחה" />
-                {form1.formState.errors.last_name && <p className="text-red-500 text-xs">{form1.formState.errors.last_name.message}</p>}
-              </div>
-            </div>
+      <CardContent className="space-y-5">
+        {/* Social Login */}
+        <div className="space-y-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded-2xl border-[#E5E5E5] h-11 font-medium text-[#0A0A0A] hover:bg-[#F5F5F5]"
+            onClick={() => handleSocialLogin('google')}
+            disabled={!!socialLoading}
+          >
+            <svg className="w-5 h-5 me-2" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            {socialLoading === 'google' ? 'מתחבר...' : 'הצטרף עם Google'}
+          </Button>
 
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded-2xl border-[#E5E5E5] h-11 font-medium text-[#0A0A0A] hover:bg-[#F5F5F5]"
+            onClick={() => handleSocialLogin('facebook')}
+            disabled={!!socialLoading}
+          >
+            <svg className="w-5 h-5 me-2" viewBox="0 0 24 24" fill="#1877F2">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            {socialLoading === 'facebook' ? 'מתחבר...' : 'הצטרף עם Facebook'}
+          </Button>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-[#E5E5E5]" />
+          <span className="text-xs text-[#A3A3A3] font-medium">או הירשם עם אימייל</span>
+          <div className="flex-1 h-px bg-[#E5E5E5]" />
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>{t.auth.email}</Label>
-              <Input type="email" {...form1.register('email')} placeholder="you@example.com" />
-              {form1.formState.errors.email && <p className="text-red-500 text-xs">{form1.formState.errors.email.message}</p>}
+              <Label className="text-[#0A0A0A] font-medium text-sm">שם פרטי</Label>
+              <Input
+                {...register('first_name')}
+                placeholder="ישראל"
+                className="h-11 rounded-xl border-[#E5E5E5]"
+              />
+              {errors.first_name && <p className="text-red-500 text-xs">{errors.first_name.message}</p>}
             </div>
-
             <div className="space-y-1.5">
-              <Label>{t.auth.date_of_birth}</Label>
-              <Input type="date" {...form1.register('date_of_birth')} />
-              {form1.formState.errors.date_of_birth && <p className="text-red-500 text-xs">{form1.formState.errors.date_of_birth.message}</p>}
+              <Label className="text-[#0A0A0A] font-medium text-sm">שם משפחה</Label>
+              <Input
+                {...register('last_name')}
+                placeholder="ישראלי"
+                className="h-11 rounded-xl border-[#E5E5E5]"
+              />
+              {errors.last_name && <p className="text-red-500 text-xs">{errors.last_name.message}</p>}
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <Label>{t.auth.gender}</Label>
-              <RadioGroup
-                defaultValue={formData.gender}
-                onValueChange={(v) => form1.setValue('gender', v as 'male' | 'female' | 'other')}
-                className="flex gap-3"
-              >
-                {[{ value: 'male', label: t.auth.male }, { value: 'female', label: t.auth.female }, { value: 'other', label: t.auth.other_gender }].map(opt => (
-                  <div key={opt.value} className="flex items-center gap-2">
-                    <RadioGroupItem value={opt.value} id={`gender-${opt.value}`} />
-                    <Label htmlFor={`gender-${opt.value}`}>{opt.label}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
+          <div className="space-y-1.5">
+            <Label className="text-[#0A0A0A] font-medium text-sm">אימייל</Label>
+            <Input
+              type="email"
+              {...register('email')}
+              placeholder="you@example.com"
+              className="h-11 rounded-xl border-[#E5E5E5]"
+            />
+            {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[#0A0A0A] font-medium text-sm flex items-center gap-1">
+              <Phone className="w-3.5 h-3.5" />
+              מספר טלפון
+            </Label>
+            <Input
+              type="tel"
+              {...register('phone_number')}
+              placeholder="050-0000000"
+              className="h-11 rounded-xl border-[#E5E5E5]"
+              dir="ltr"
+            />
+            {errors.phone_number
+              ? <p className="text-red-500 text-xs">{errors.phone_number.message}</p>
+              : <p className="text-[#A3A3A3] text-xs">מספר הטלפון עוזר לנו למנוע פרופילים פיקטיביים</p>
+            }
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[#0A0A0A] font-medium text-sm">סיסמה</Label>
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                {...register('password')}
+                className="h-11 rounded-xl border-[#E5E5E5]"
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 end-3 flex items-center text-[#A3A3A3]">
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
+          </div>
 
-            <div className="space-y-1.5">
-              <Label>{t.auth.seeking}</Label>
-              <RadioGroup
-                defaultValue={formData.seeking}
-                onValueChange={(v) => form1.setValue('seeking', v as 'male' | 'female' | 'both')}
-                className="flex gap-3"
-              >
-                {[{ value: 'male', label: t.auth.male }, { value: 'female', label: t.auth.female }, { value: 'both', label: t.auth.both }].map(opt => (
-                  <div key={opt.value} className="flex items-center gap-2">
-                    <RadioGroupItem value={opt.value} id={`seeking-${opt.value}`} />
-                    <Label htmlFor={`seeking-${opt.value}`}>{opt.label}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
+          <div className="space-y-1.5">
+            <Label className="text-[#0A0A0A] font-medium text-sm">אימות סיסמה</Label>
+            <div className="relative">
+              <Input
+                type={showConfirm ? 'text' : 'password'}
+                {...register('confirm_password')}
+                className="h-11 rounded-xl border-[#E5E5E5]"
+              />
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 end-3 flex items-center text-[#A3A3A3]">
+                {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {errors.confirm_password && <p className="text-red-500 text-xs">{errors.confirm_password.message}</p>}
+          </div>
 
-            <Button type="submit" className="w-full bg-[#1a3a5c] hover:bg-[#122840] text-white rounded-2xl py-5 font-bold">
-              {t.common.next} <NextArrow className="w-4 h-4 ms-2" />
-            </Button>
-          </form>
-        )}
+          <Button
+            type="submit"
+            className="w-full bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-11 font-bold text-base"
+            disabled={isLoading}
+          >
+            {isLoading ? 'יוצר חשבון...' : 'יצירת חשבון'}
+          </Button>
+        </form>
 
-        {/* Step 2 */}
-        {step === 2 && (
-          <form onSubmit={form2.handleSubmit(handleStep2)} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>{t.religious.level_label}</Label>
-              <Select onValueChange={(v) => form2.setValue('religious_level', v as RegisterStep2Data['religious_level'])}>
-                <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
-                <SelectContent>
-                  {(['hiloni', 'masorti', 'dati_light', 'dati', 'haredi'] as const).map(r => (
-                    <SelectItem key={r} value={r}>{t.religious[r]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t.religious.kosher_label}</Label>
-              <Select onValueChange={(v) => form2.setValue('kosher_level', v as RegisterStep2Data['kosher_level'])}>
-                <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
-                <SelectContent>
-                  {[
-                    { value: 'none', label: t.religious.kosher_none },
-                    { value: 'kosher_home', label: t.religious.kosher_home },
-                    { value: 'kosher_out', label: t.religious.kosher_out },
-                    { value: 'strict', label: t.religious.kosher_strict },
-                  ].map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <Label>{t.religious.shomer_shabbat}</Label>
-              <Switch onCheckedChange={(v) => form2.setValue('shomer_shabbat', v)} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t.community.background_label}</Label>
-              <Select onValueChange={(v) => form2.setValue('community_background', v as RegisterStep2Data['community_background'])}>
-                <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
-                <SelectContent>
-                  {(['ashkenazi', 'sephardic', 'mizrahi', 'yemenite', 'mixed', 'other'] as const).map(c => (
-                    <SelectItem key={c} value={c}>{t.community[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t.community.hebrew_fluency_label}</Label>
-              <Select onValueChange={(v) => form2.setValue('hebrew_fluency', v as RegisterStep2Data['hebrew_fluency'])}>
-                <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
-                <SelectContent>
-                  {[
-                    { value: 'none', label: t.community.hebrew_none },
-                    { value: 'basic', label: t.community.hebrew_basic },
-                    { value: 'conversational', label: t.community.hebrew_conversational },
-                    { value: 'fluent', label: t.community.hebrew_fluent },
-                    { value: 'native', label: t.community.hebrew_native },
-                  ].map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1 rounded-2xl">
-                <BackArrow className="w-4 h-4 me-2" /> {t.common.back}
-              </Button>
-              <Button type="submit" className="flex-1 bg-[#1a3a5c] hover:bg-[#122840] text-white rounded-2xl font-bold">
-                {t.common.next} <NextArrow className="w-4 h-4 ms-2" />
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {/* Step 3 */}
-        {step === 3 && (
-          <form onSubmit={form3.handleSubmit(handleStep3)} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>{t.auth.password}</Label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  {...form3.register('password')}
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 end-3 flex items-center text-gray-400">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {form3.formState.errors.password && <p className="text-red-500 text-xs">{form3.formState.errors.password.message}</p>}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t.auth.confirm_password}</Label>
-              <Input type="password" {...form3.register('confirm_password')} />
-              {form3.formState.errors.confirm_password && <p className="text-red-500 text-xs">{form3.formState.errors.confirm_password.message}</p>}
-            </div>
-
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(2)} className="flex-1 rounded-2xl">
-                <BackArrow className="w-4 h-4 me-2" /> {t.common.back}
-              </Button>
-              <Button type="submit" className="flex-1 bg-[#e8566c] hover:bg-[#c93a52] text-white rounded-2xl font-bold" disabled={isLoading}>
-                {isLoading ? t.common.loading : t.common.done}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        <div className="mt-4 text-center text-sm text-gray-500">
-          {t.auth.has_account}{' '}
-          <Link href="/login" className="text-[#1a3a5c] font-bold hover:underline">{t.auth.login_link}</Link>
+        <div className="text-center text-sm text-[#737373]">
+          יש לך כבר חשבון?{' '}
+          <Link href="/login" className="text-[#0A0A0A] font-bold hover:underline">
+            כניסה
+          </Link>
         </div>
       </CardContent>
     </Card>
