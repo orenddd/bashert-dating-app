@@ -143,7 +143,7 @@ export default function MyProfilePage() {
                 )}
               </div>
               <Button asChild size="sm" className="bg-[#0A0A0A] text-white rounded-xl hover:bg-[#222]">
-                <Link href="/settings">
+                <Link href="/profile/edit">
                   <Settings className="w-4 h-4 me-1" />
                   {t.profile.edit_profile}
                 </Link>
@@ -239,7 +239,7 @@ export default function MyProfilePage() {
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-bold text-[#0A0A0A]">{t.profile.about}</h3>
             <Button asChild variant="ghost" size="sm" className="text-[#737373] text-xs">
-              <Link href="/settings">{t.common.edit}</Link>
+              <Link href="/profile/edit">{t.common.edit}</Link>
             </Button>
           </div>
           <p className="text-[#737373] text-sm leading-relaxed">
