@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password']
+const SETUP_PATH = '/setup-profile'
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request })
@@ -26,13 +27,28 @@ export async function proxy(request: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
   const path = request.nextUrl.pathname
   const isPublic = PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'))
+  const isSetup = path === SETUP_PATH || path.startsWith(SETUP_PATH + '/')
 
-  if (!isPublic && !session) {
+  // לא מחובר + דף מוגן → login
+  if (!session && !isPublic && !isSetup) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // לא מחובר + setup → login
+  if (!session && isSetup) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // מחובר + login/register → בדוק profile_complete (DB query חד-פעמי)
   if (session && (path === '/login' || path === '/register')) {
-    return NextResponse.redirect(new URL('/discover', request.url))
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('profile_complete')
+      .eq('user_id', session.user.id)
+      .single()
+
+    const dest = profile?.profile_complete ? '/discover' : SETUP_PATH
+    return NextResponse.redirect(new URL(dest, request.url))
   }
 
   return response

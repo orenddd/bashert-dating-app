@@ -20,7 +20,7 @@ export interface DbProfile {
   last_name: string
   gender: Gender
   seeking: Gender | 'both'
-  date_of_birth: string
+  date_of_birth: string | null
   birth_year: number | null
   marital_status: MaritalStatus
   city: string

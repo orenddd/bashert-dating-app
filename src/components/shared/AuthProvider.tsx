@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phone_number: String(data.phone_number ?? ''),
         gender: 'other',
         seeking: 'both',
-        date_of_birth: '',
+        date_of_birth: null,
         birth_year: null,
         marital_status: 'single',
         city: '',
