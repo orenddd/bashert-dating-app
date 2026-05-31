@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/components/shared/AuthProvider'
+import { createClient } from '@/lib/supabase/client'
 import { ArrowRight, ArrowLeft, Camera, X, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -298,6 +299,52 @@ export default function SetupProfilePage() {
   const finish = async () => {
     setIsSaving(true)
     try {
+      // ─── העלאת תמונות ל-Supabase Storage ─────────────────────────────────
+      if (user?.id && form.photos.length > 0) {
+        const supabase = createClient()
+        const toInsert: {
+          user_id: string; url: string; is_primary: boolean;
+          order_index: number; media_type: string;
+        }[] = []
+
+        for (let i = 0; i < form.photos.length; i++) {
+          const file = form.photos[i]
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+          const path = `${user.id}/${Date.now()}-${i}.${ext}`
+          const mediaType = file.type.startsWith('video') ? 'video'
+            : file.type.startsWith('audio') ? 'audio' : 'image'
+
+          const { data: uploaded, error: uploadErr } = await supabase.storage
+            .from('profile-photos')
+            .upload(path, file, { upsert: true })
+
+          if (uploadErr) {
+            console.error('upload error:', uploadErr)
+            continue
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('profile-photos')
+            .getPublicUrl(uploaded.path)
+
+          toInsert.push({
+            user_id: user.id,
+            url: publicUrl,
+            is_primary: i === 0,
+            order_index: i,
+            media_type: mediaType,
+          })
+        }
+
+        if (toInsert.length > 0) {
+          // מחק תמונות ישנות והכנס חדשות
+          await supabase.from('photos').delete().eq('user_id', user.id)
+          const { error: insertErr } = await supabase.from('photos').insert(toInsert)
+          if (insertErr) console.error('photos insert error:', insertErr)
+        }
+      }
+
+      // ─── עדכון פרופיל ────────────────────────────────────────────────────
       const hobbiesArr = [
         ...form.hobbies.split(',').map(h => h.trim()).filter(Boolean),
         ...(form.hobby_custom ? [form.hobby_custom.trim()] : []),
@@ -350,7 +397,8 @@ export default function SetupProfilePage() {
       })
       toast.success('הפרופיל שלך מוכן! 🎉')
       router.push('/discover')
-    } catch {
+    } catch (err) {
+      console.error('finish error:', err)
       toast.error('שגיאה בשמירת הפרופיל. נסה שנית.')
     } finally {
       setIsSaving(false)
@@ -943,7 +991,7 @@ export default function SetupProfilePage() {
             disabled={!canProceed() || isSaving}
             className="flex-1 bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-12 font-bold disabled:opacity-40"
           >
-            {isSaving ? 'שומר...' : stepIndex === TOTAL - 1 ? '🎉 סיום ולגלות!' : (
+            {isSaving ? (form.photos.length > 0 ? 'מעלה תמונות...' : 'שומר...') : stepIndex === TOTAL - 1 ? '🎉 סיום ולגלות!' : (
               <>
                 המשך
                 <ArrowLeft className="w-4 h-4 ms-1" />
