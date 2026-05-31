@@ -15,8 +15,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/login')
       return
     }
-    // אם הפרופיל לא הושלם → שאלון
-    if (user.profile && !user.profile.profile_complete) {
+    // אם אין פרופיל כלל, או שהפרופיל לא הושלם → שאלון
+    if (!user.profile || !user.profile.profile_complete) {
       router.replace('/setup-profile')
     }
   }, [user, isLoading, router])
