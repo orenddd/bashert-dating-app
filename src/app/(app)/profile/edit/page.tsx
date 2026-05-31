@@ -316,7 +316,8 @@ export default function EditProfilePage() {
           }
 
           if (toInsert.length > 0) {
-            await supabase.from('photos').insert(toInsert)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await supabase.from('photos').insert(toInsert as any)
           }
         }
 

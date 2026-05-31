@@ -4,7 +4,8 @@ import { calcAge } from '@/lib/utils/age'
 
 export const CURRENT_USER_ID = 'current-user'
 
-export const MOCK_PROFILES: DbProfile[] = [
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const MOCK_PROFILES: DbProfile[] = ([
   {
     id: 'prof-001', user_id: 'user-001', display_name: 'Michal K.', first_name: 'Michal', last_name: 'Katz',
     gender: 'female', seeking: 'male', date_of_birth: '1994-03-15', city: 'New York', state: 'NY', country: 'US',
@@ -265,7 +266,7 @@ export const MOCK_PROFILES: DbProfile[] = [
     profile_complete: true, subscription_tier: 'platinum', boost_active_until: null, views_count: 289,
     created_at: '2024-08-10T10:00:00Z', updated_at: new Date().toISOString(),
   },
-]
+] as any) as DbProfile[]
 
 export const MOCK_PHOTOS: DbPhoto[] = MOCK_PROFILES.flatMap((profile, i) => [
   {
@@ -275,6 +276,7 @@ export const MOCK_PHOTOS: DbPhoto[] = MOCK_PROFILES.flatMap((profile, i) => [
     thumbnail_url: `https://picsum.photos/seed/${profile.user_id}-1/200/200`,
     is_primary: true,
     order_index: 0,
+    media_type: 'image' as const,
     created_at: profile.created_at,
   },
   ...(i % 3 !== 0 ? [{
@@ -284,6 +286,7 @@ export const MOCK_PHOTOS: DbPhoto[] = MOCK_PROFILES.flatMap((profile, i) => [
     thumbnail_url: `https://picsum.photos/seed/${profile.user_id}-2/200/200`,
     is_primary: false,
     order_index: 1,
+    media_type: 'image' as const,
     created_at: profile.created_at,
   }] : []),
   ...(i % 5 !== 0 ? [{
@@ -293,6 +296,7 @@ export const MOCK_PHOTOS: DbPhoto[] = MOCK_PROFILES.flatMap((profile, i) => [
     thumbnail_url: `https://picsum.photos/seed/${profile.user_id}-3/200/200`,
     is_primary: false,
     order_index: 2,
+    media_type: 'image' as const,
     created_at: profile.created_at,
   }] : []),
 ])

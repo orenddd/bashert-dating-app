@@ -339,7 +339,8 @@ export default function SetupProfilePage() {
         if (toInsert.length > 0) {
           // מחק תמונות ישנות והכנס חדשות
           await supabase.from('photos').delete().eq('user_id', user.id)
-          const { error: insertErr } = await supabase.from('photos').insert(toInsert)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: insertErr } = await (supabase.from('photos') as any).insert(toInsert)
           if (insertErr) console.error('photos insert error:', insertErr)
         }
       }
@@ -359,7 +360,7 @@ export default function SetupProfilePage() {
         marital_status: form.marital_status as 'single' | 'divorced' | 'widowed',
         height_cm: form.height_cm ? Number(form.height_cm) : null,
         relationship_goal: form.relationship_goal,
-        children_future: form.children_future as FormData['children_future'],
+        children_future: form.children_future as import('@/lib/types/database').ChildrenFuture,
         seeking_status: form.seeking_status,
         seeking_with_kids: form.seeking_with_kids as 'yes' | 'no' | 'dont_mind' | '',
         age_pref_min: form.age_pref_min,

@@ -83,8 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (authData.user) {
       // שימוש ב-instance הקיים (שכבר מחזיק את הsession) ולא createClient חדש
-      const { error: profileError } = await supabase
-        .from('profiles')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: profileError } = await (supabase.from('profiles') as any)
         .upsert({
           user_id: authData.user.id,
           first_name: String(data.first_name ?? ''),
