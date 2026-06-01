@@ -397,7 +397,8 @@ export default function SetupProfilePage() {
         profile_complete: true,
       })
       toast.success('הפרופיל שלך מוכן! 🎉')
-      router.push('/discover')
+      // Full reload so AuthProvider re-fetches profile_complete from DB
+      window.location.href = '/discover'
     } catch (err) {
       console.error('finish error:', err)
       toast.error('שגיאה בשמירת הפרופיל. נסה שנית.')

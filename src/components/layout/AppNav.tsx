@@ -1,14 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Heart, MessageCircle, Search, Compass, User } from 'lucide-react'
+import { Heart, MessageCircle, Search, Compass, User, MessageSquare, Shield } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
+import { useAuth } from '@/components/shared/AuthProvider'
+import { FeedbackModal } from '@/components/shared/FeedbackModal'
 import { cn } from '@/lib/utils'
 
 export function AppNav() {
   const pathname = usePathname()
   const { t } = useTranslation()
+  const { user } = useAuth()
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+
+  const isAdmin = (user?.profile as unknown as Record<string, unknown>)?.is_admin === true
 
   const navItems = [
     { href: '/discover', icon: Compass, label: t.nav.discover },
@@ -52,7 +59,32 @@ export function AppNav() {
           })}
         </nav>
 
-        <div className="p-3 border-t border-[#E5E5E5]">
+        <div className="p-3 border-t border-[#E5E5E5] space-y-0.5">
+          {/* Admin panel link */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                pathname.startsWith('/admin')
+                  ? 'bg-[#0A0A0A] text-white'
+                  : 'text-[#737373] hover:bg-[#EBEBEB] hover:text-[#0A0A0A]'
+              )}
+            >
+              <Shield className="w-[18px] h-[18px]" />
+              לוח ניהול
+            </Link>
+          )}
+
+          {/* Feedback button */}
+          <button
+            onClick={() => setFeedbackOpen(true)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#A3A3A3] hover:bg-[#EBEBEB] hover:text-[#0A0A0A] transition-all text-sm"
+          >
+            <MessageSquare className="w-[18px] h-[18px]" />
+            שלח משוב
+          </button>
+
           <Link
             href="/settings"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#A3A3A3] hover:bg-[#EBEBEB] hover:text-[#0A0A0A] transition-all text-sm"
@@ -82,8 +114,18 @@ export function AppNav() {
               </Link>
             )
           })}
+          {/* Feedback button — mobile */}
+          <button
+            onClick={() => setFeedbackOpen(true)}
+            className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-[#C0C0C0]"
+          >
+            <MessageSquare className="w-5 h-5" />
+            <span className="text-[10px] font-medium">משוב</span>
+          </button>
         </div>
       </nav>
+
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   )
 }
