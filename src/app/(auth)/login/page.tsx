@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -16,7 +15,6 @@ import { toast } from 'sonner'
 
 export default function LoginPage() {
   const { login, loginWithProvider } = useAuth()
-  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState<string | null>(null)
@@ -29,7 +27,9 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       await login(data.email, data.password)
-      router.push('/discover')
+      // Full reload so AuthProvider re-fetches profile_complete from DB
+      // and AppLayout can correctly redirect incomplete profiles to /setup-profile
+      window.location.href = '/discover'
     } catch {
       toast.error('שגיאה בכניסה. בדוק את פרטיך ונסה שנית.')
     } finally {
