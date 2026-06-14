@@ -19,6 +19,7 @@ interface FormData {
   birth_year: string
   gender: 'male' | 'female' | ''
   marital_status: 'single' | 'divorced' | 'widowed' | ''
+  children_count: string
   height_cm: string
   relationship_goal: string[]
   children_future: string
@@ -188,7 +189,7 @@ function RangeSlider({
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
 const STEPS = [
-  'name', 'birth_year', 'gender', 'status', 'height',
+  'name', 'birth_year', 'gender', 'status', 'children_count', 'height',
   'relationship_goal', 'children_future',
   'seeking_partner', 'seeking_range',
   'religion', 'location', 'residence_intent',
@@ -219,6 +220,7 @@ export default function SetupProfilePage() {
     birth_year: '',
     gender: '',
     marital_status: '',
+    children_count: '',
     height_cm: '',
     relationship_goal: [],
     children_future: '',
@@ -274,6 +276,7 @@ export default function SetupProfilePage() {
       case 'birth_year': return !!form.birth_year && Number(form.birth_year) >= 1944 && Number(form.birth_year) <= 2006
       case 'gender': return !!form.gender
       case 'status': return !!form.marital_status
+      case 'children_count': return form.children_count !== '' && Number(form.children_count) >= 0
       case 'height': return true // optional
       case 'relationship_goal': return form.relationship_goal.length > 0
       case 'children_future': return !!form.children_future
@@ -358,6 +361,7 @@ export default function SetupProfilePage() {
         gender: form.gender as 'male' | 'female',
         seeking: form.gender === 'male' ? 'female' : 'male',
         marital_status: form.marital_status as 'single' | 'divorced' | 'widowed',
+        children_count: form.children_count !== '' ? Number(form.children_count) : 0,
         height_cm: form.height_cm ? Number(form.height_cm) : null,
         relationship_goal: form.relationship_goal,
         children_future: form.children_future as import('@/lib/types/database').ChildrenFuture,
@@ -547,6 +551,38 @@ export default function SetupProfilePage() {
               selected={form.marital_status}
               onSelect={v => set('marital_status', v as FormData['marital_status'])}
             />
+          </div>
+        )}
+
+        {/* ── Step: Children Count ── */}
+        {currentStep === 'children_count' && (
+          <div>
+            <StepHeader title="כמה ילדים יש לך?" subtitle="גם לרווק/ה יכולים להיות ילדים — והכל בסדר גמור 💛" />
+            <button
+              type="button"
+              onClick={() => set('children_count', '0')}
+              className={cn(
+                'w-full text-right px-4 py-3 rounded-2xl border-2 transition-all font-medium text-sm mb-4',
+                form.children_count === '0'
+                  ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
+                  : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
+              )}
+            >
+              אין לי ילדים
+            </button>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-[#0A0A0A]">או כמה ילדים יש לך?</label>
+              <Input
+                type="number"
+                value={form.children_count === '0' ? '' : form.children_count}
+                onChange={e => set('children_count', e.target.value)}
+                placeholder="לדוגמה: 2"
+                min={1}
+                max={20}
+                className="h-16 rounded-2xl border-[#E5E5E5] text-3xl font-bold text-center"
+                dir="ltr"
+              />
+            </div>
           </div>
         )}
 
@@ -805,6 +841,8 @@ export default function SetupProfilePage() {
                 { value: 'pt', label: '🇧🇷 פורטוגזית' },
                 { value: 'de', label: '🇩🇪 גרמנית' },
                 { value: 'it', label: '🇮🇹 איטלקית' },
+                { value: 'buh', label: '🇺🇿 בוכרית' },
+                { value: 'ka', label: '🇬🇪 גרוזינית' },
               ]}
               selected={form.languages}
               onToggle={v => toggleMulti('languages', v)}

@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { Settings, Bell, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { LangToggle } from './LangToggle'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useRouter } from 'next/navigation'
@@ -31,7 +30,6 @@ export function AppHeader({ title, showBack }: Props) {
         <h1 className="font-serif text-xl font-bold text-[#0A0A0A] tracking-tight">{title}</h1>
       )}
       <div className="flex items-center gap-1.5 ms-auto">
-        <LangToggle />
         <Button variant="ghost" size="icon" asChild className="text-[#A3A3A3] hover:text-[#0A0A0A] hover:bg-[#F5F5F5]">
           <Link href="/settings">
             <Bell className="w-5 h-5" />

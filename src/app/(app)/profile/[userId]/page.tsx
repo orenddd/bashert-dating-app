@@ -93,6 +93,7 @@ const LANGUAGES: Record<string, string> = {
   he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', ar: '🌙 ערבית', ru: '🇷🇺 רוסית',
   es: '🇪🇸 ספרדית', fr: '🇫🇷 צרפתית', am: '🇪🇹 אמהרית', yi: '✡️ יידיש',
   fa: '🇮🇷 פרסית', pt: '🇧🇷 פורטוגזית', de: '🇩🇪 גרמנית', it: '🇮🇹 איטלקית',
+  buh: '🇺🇿 בוכרית', ka: '🇬🇪 גרוזינית',
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -287,6 +288,11 @@ export default function ProfilePage() {
             )}
             {profile.marital_status && (
               <span className="text-[rgba(23,20,17,0.55)] text-sm">{MARITAL_STATUS[profile.marital_status]}</span>
+            )}
+            {profile.children_count > 0 && (
+              <span className="text-[rgba(23,20,17,0.55)] text-sm">
+                👶 {profile.children_count === 1 ? 'ילד אחד' : `${profile.children_count} ילדים`}
+              </span>
             )}
             {profile.city && (
               <span className="text-[rgba(23,20,17,0.55)] text-sm flex items-center gap-1">

@@ -1,0 +1,138 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Deep space background -->
+    <radialGradient id="space" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#1b2a4a"/>
+      <stop offset="38%" stop-color="#0d1530"/>
+      <stop offset="100%" stop-color="#04060f"/>
+    </radialGradient>
+
+    <!-- Ocean sphere -->
+    <radialGradient id="ocean" cx="38%" cy="32%" r="78%">
+      <stop offset="0%" stop-color="#7fc8f0"/>
+      <stop offset="35%" stop-color="#1f7fcf"/>
+      <stop offset="72%" stop-color="#0f4f9e"/>
+      <stop offset="100%" stop-color="#062a5e"/>
+    </radialGradient>
+
+    <!-- Land gradient -->
+    <linearGradient id="land" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5bbf6a"/>
+      <stop offset="55%" stop-color="#3a9450"/>
+      <stop offset="100%" stop-color="#2c6b3c"/>
+    </linearGradient>
+
+    <!-- Atmosphere glow -->
+    <radialGradient id="atmo" cx="50%" cy="50%" r="50%">
+      <stop offset="78%" stop-color="#5ec8ff" stop-opacity="0"/>
+      <stop offset="92%" stop-color="#5ec8ff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#5ec8ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Shadow / terminator on the globe -->
+    <radialGradient id="shade" cx="36%" cy="30%" r="85%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="62%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000510" stop-opacity="0.78"/>
+    </radialGradient>
+
+    <!-- Specular highlight -->
+    <radialGradient id="spec" cx="34%" cy="28%" r="28%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <clipPath id="globeClip">
+      <circle cx="540" cy="700" r="420"/>
+    </clipPath>
+  </defs>
+
+  <!-- Space -->
+  <rect width="1080" height="1920" fill="url(#space)"/>
+
+  <!-- Stars -->
+  <g fill="#ffffff">
+    <circle cx="120" cy="180" r="2.4" opacity="0.9"/>
+    <circle cx="240" cy="90" r="1.6" opacity="0.6"/>
+    <circle cx="380" cy="230" r="1.2" opacity="0.5"/>
+    <circle cx="520" cy="120" r="2" opacity="0.8"/>
+    <circle cx="700" cy="200" r="1.4" opacity="0.6"/>
+    <circle cx="860" cy="110" r="2.6" opacity="0.9"/>
+    <circle cx="960" cy="260" r="1.6" opacity="0.7"/>
+    <circle cx="180" cy="360" r="1.4" opacity="0.6"/>
+    <circle cx="940" cy="420" r="2" opacity="0.8"/>
+    <circle cx="70" cy="520" r="1.8" opacity="0.7"/>
+    <circle cx="1010" cy="600" r="1.4" opacity="0.6"/>
+    <circle cx="60" cy="780" r="2.2" opacity="0.8"/>
+    <circle cx="1020" cy="900" r="1.6" opacity="0.6"/>
+    <circle cx="150" cy="1080" r="2" opacity="0.7"/>
+    <circle cx="980" cy="1120" r="1.4" opacity="0.5"/>
+    <circle cx="300" cy="1180" r="1.8" opacity="0.6"/>
+    <circle cx="780" cy="1240" r="1.4" opacity="0.5"/>
+    <circle cx="440" cy="60" r="1.2" opacity="0.5"/>
+    <circle cx="620" cy="320" r="1.2" opacity="0.4"/>
+    <circle cx="880" cy="640" r="1.6" opacity="0.6"/>
+  </g>
+
+  <!-- Atmosphere glow ring -->
+  <circle cx="540" cy="700" r="470" fill="url(#atmo)"/>
+
+  <!-- Globe -->
+  <g>
+    <circle cx="540" cy="700" r="420" fill="url(#ocean)"/>
+
+    <!-- Continents (stylized) -->
+    <g clip-path="url(#globeClip)" fill="url(#land)">
+      <!-- North America -->
+      <path d="M300 430
+               C340 400 410 405 440 440
+               C470 470 460 520 430 545
+               C455 560 460 600 435 630
+               C405 665 350 660 325 625
+               C300 595 305 560 290 535
+               C270 505 265 460 300 430 Z"/>
+      <!-- South America -->
+      <path d="M430 720
+               C470 705 510 730 510 775
+               C512 825 478 880 452 905
+               C432 925 405 915 405 885
+               C405 850 420 820 410 790
+               C402 760 400 735 430 720 Z"/>
+      <!-- Africa / Europe -->
+      <path d="M560 510
+               C610 495 660 515 665 560
+               C668 600 640 625 645 660
+               C650 705 615 760 575 765
+               C545 768 525 735 530 700
+               C534 665 555 645 548 610
+               C542 575 525 525 560 510 Z"/>
+      <!-- Asia -->
+      <path d="M690 470
+               C760 450 850 470 880 520
+               C905 560 870 600 820 605
+               C840 635 815 670 775 665
+               C735 660 720 625 710 595
+               C698 560 670 540 672 510
+               C674 488 678 474 690 470 Z"/>
+      <!-- Australia -->
+      <path d="M820 800
+               C865 788 905 808 905 845
+               C905 880 870 900 835 892
+               C805 885 795 855 800 830
+               C803 813 808 803 820 800 Z"/>
+    </g>
+
+    <!-- Clouds -->
+    <g clip-path="url(#globeClip)" fill="#ffffff" opacity="0.16">
+      <ellipse cx="420" cy="560" rx="140" ry="40" transform="rotate(-18 420 560)"/>
+      <ellipse cx="680" cy="700" rx="170" ry="46" transform="rotate(12 680 700)"/>
+      <ellipse cx="540" cy="860" rx="200" ry="50" transform="rotate(-8 540 860)"/>
+      <ellipse cx="640" cy="470" rx="120" ry="34" transform="rotate(20 640 470)"/>
+    </g>
+
+    <!-- Shadow -->
+    <circle cx="540" cy="700" r="420" fill="url(#shade)"/>
+    <!-- Highlight -->
+    <circle cx="540" cy="700" r="420" fill="url(#spec)"/>
+  </g>
+</svg>

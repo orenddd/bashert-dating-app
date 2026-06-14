@@ -112,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           hebrew_fluency: 'native',
           aliyah_plan: 'no',
           children_status: 'no_children',
+          children_count: 0,
           children_future: '',
           wants_children: null,
           height_cm: null,

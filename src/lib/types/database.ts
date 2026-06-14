@@ -39,6 +39,7 @@ export interface DbProfile {
   hebrew_fluency: HebrewFluency
   aliyah_plan: AliyahPlan
   children_status: ChildrenStatus
+  children_count: number
   children_future: ChildrenFuture
   wants_children: boolean | null
   height_cm: number | null

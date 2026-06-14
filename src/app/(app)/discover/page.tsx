@@ -82,6 +82,7 @@ const LANG_LABELS: Record<string, string> = {
   he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', fr: '🇫🇷 צרפתית',
   ru: '🇷🇺 רוסית', ar: '🌙 ערבית', es: '🇪🇸 ספרדית',
   am: '🇪🇹 אמהרית', yi: '✡️ יידיש', de: '🇩🇪 גרמנית', it: '🇮🇹 איטלקית',
+  buh: '🇺🇿 בוכרית', ka: '🇬🇪 גרוזינית',
 }
 
 function openQ(profile: DbProfile): Record<string, string> {

@@ -151,6 +151,7 @@ interface EditForm {
   birth_year: string
   gender: string
   marital_status: string
+  children_count: string
   height_cm: string
   city: string
   relationship_goal: string[]
@@ -194,7 +195,7 @@ export default function EditProfilePage() {
 
   const [form, setForm] = useState<EditForm>({
     first_name: '', last_name: '', birth_year: '', gender: '', marital_status: '',
-    height_cm: '', city: '',
+    children_count: '', height_cm: '', city: '',
     relationship_goal: [], children_future: '', seeking_status: [],
     seeking_with_kids: '', age_pref_min: 22, age_pref_max: 45, distance_pref_km: 50,
     religion: [], residence_intent: [], languages: [],
@@ -223,6 +224,7 @@ export default function EditProfilePage() {
         birth_year: p.birth_year ? String(p.birth_year) : '',
         gender: p.gender ?? '',
         marital_status: p.marital_status ?? '',
+        children_count: p.children_count != null ? String(p.children_count) : '',
         height_cm: p.height_cm ? String(p.height_cm) : '',
         city: p.city ?? '',
         relationship_goal: p.relationship_goal ?? [],
@@ -345,6 +347,7 @@ export default function EditProfilePage() {
           gender: form.gender || null,
           seeking: form.gender === 'male' ? 'female' : form.gender === 'female' ? 'male' : 'both',
           marital_status: form.marital_status || null,
+          children_count: form.children_count !== '' ? Number(form.children_count) : 0,
           height_cm: form.height_cm ? Number(form.height_cm) : null,
           city: form.city,
         })
@@ -503,6 +506,29 @@ export default function EditProfilePage() {
               </div>
 
               <div>
+                <FieldLabel>כמה ילדים יש לך?</FieldLabel>
+                <button
+                  type="button"
+                  onClick={() => set('children_count', '0')}
+                  className={cn(
+                    'w-full text-right px-4 py-3 rounded-2xl border-2 transition-all font-medium text-sm mb-3',
+                    form.children_count === '0'
+                      ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
+                      : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
+                  )}
+                >
+                  אין לי ילדים
+                </button>
+                <Input
+                  type="number"
+                  value={form.children_count === '0' ? '' : form.children_count}
+                  onChange={e => set('children_count', e.target.value)}
+                  placeholder="או הקלד כמה ילדים..." min={1} max={20}
+                  className="h-12 rounded-2xl border-[#E5E5E5] text-center text-xl font-bold" dir="ltr"
+                />
+              </div>
+
+              <div>
                 <FieldLabel optional>גובה (ס"מ)</FieldLabel>
                 <Input
                   type="number" value={form.height_cm}
@@ -648,6 +674,8 @@ export default function EditProfilePage() {
                     { value: 'pt', label: '🇧🇷 פורטוגזית' },
                     { value: 'de', label: '🇩🇪 גרמנית' },
                     { value: 'it', label: '🇮🇹 איטלקית' },
+                    { value: 'buh', label: '🇺🇿 בוכרית' },
+                    { value: 'ka', label: '🇬🇪 גרוזינית' },
                   ]}
                   selected={form.languages}
                   onToggle={v => toggleMulti('languages', v)}

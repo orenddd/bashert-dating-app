@@ -29,12 +29,11 @@ const RegisterSchema = z.object({
 type RegisterData = z.infer<typeof RegisterSchema>
 
 export default function RegisterPage() {
-  const { register: authRegister, loginWithProvider } = useAuth()
+  const { register: authRegister } = useAuth()
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [socialLoading, setSocialLoading] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterData>({
     resolver: zodResolver(RegisterSchema),
@@ -56,104 +55,49 @@ export default function RegisterPage() {
     }
   }
 
-  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
-    setSocialLoading(provider)
-    try {
-      await loginWithProvider(provider)
-    } catch {
-      toast.error('שגיאה בהתחברות. נסה שנית.')
-      setSocialLoading(null)
-    }
-  }
-
   return (
-    <Card className="w-full max-w-md shadow-sm border border-[#E5E5E5] bg-white">
+    <Card className="w-full max-w-md rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl shadow-2xl shadow-black/40">
       <CardHeader className="text-center pb-4">
-        <div className="flex justify-center mb-4">
-          <div className="w-12 h-12 bg-[#0A0A0A] rounded-2xl flex items-center justify-center">
-            <span className="text-white text-lg font-bold">♡</span>
-          </div>
-        </div>
-        <CardTitle className="font-serif text-2xl font-black text-[#0A0A0A]">הצטרף למצאתי אותך</CardTitle>
-        <CardDescription className="text-[#737373]">מצא את הזיווג שלך — בחינם</CardDescription>
+        <CardTitle className="font-serif text-2xl font-black text-white">הצטרף למצאתי אותך</CardTitle>
+        <CardDescription className="text-white/60">מצא את הזיווג שלך — בחינם</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {/* Social Login */}
-        <div className="space-y-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full rounded-2xl border-[#E5E5E5] h-11 font-medium text-[#0A0A0A] hover:bg-[#F5F5F5]"
-            onClick={() => handleSocialLogin('google')}
-            disabled={!!socialLoading}
-          >
-            <svg className="w-5 h-5 me-2" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            {socialLoading === 'google' ? 'מתחבר...' : 'הצטרף עם Google'}
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full rounded-2xl border-[#E5E5E5] h-11 font-medium text-[#0A0A0A] hover:bg-[#F5F5F5]"
-            onClick={() => handleSocialLogin('facebook')}
-            disabled={!!socialLoading}
-          >
-            <svg className="w-5 h-5 me-2" viewBox="0 0 24 24" fill="#1877F2">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-            {socialLoading === 'facebook' ? 'מתחבר...' : 'הצטרף עם Facebook'}
-          </Button>
-        </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-[#E5E5E5]" />
-          <span className="text-xs text-[#A3A3A3] font-medium">או הירשם עם אימייל</span>
-          <div className="flex-1 h-px bg-[#E5E5E5]" />
-        </div>
-
-        {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[#0A0A0A] font-medium text-sm">שם פרטי</Label>
+              <Label className="text-white/90 font-medium text-sm">שם פרטי</Label>
               <Input
                 {...register('first_name')}
                 placeholder="ישראל"
-                className="h-11 rounded-xl border-[#E5E5E5]"
+                className="h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40"
               />
-              {errors.first_name && <p className="text-red-500 text-xs">{errors.first_name.message}</p>}
+              {errors.first_name && <p className="text-red-300 text-xs">{errors.first_name.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[#0A0A0A] font-medium text-sm">שם משפחה</Label>
+              <Label className="text-white/90 font-medium text-sm">שם משפחה</Label>
               <Input
                 {...register('last_name')}
                 placeholder="ישראלי"
-                className="h-11 rounded-xl border-[#E5E5E5]"
+                className="h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40"
               />
-              {errors.last_name && <p className="text-red-500 text-xs">{errors.last_name.message}</p>}
+              {errors.last_name && <p className="text-red-300 text-xs">{errors.last_name.message}</p>}
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[#0A0A0A] font-medium text-sm">אימייל</Label>
+            <Label className="text-white/90 font-medium text-sm">אימייל</Label>
             <Input
               type="email"
               {...register('email')}
               placeholder="you@example.com"
-              className="h-11 rounded-xl border-[#E5E5E5]"
+              className="h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40"
             />
-            {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
+            {errors.email && <p className="text-red-300 text-xs">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[#0A0A0A] font-medium text-sm flex items-center gap-1">
+            <Label className="text-white/90 font-medium text-sm flex items-center gap-1">
               <Phone className="w-3.5 h-3.5" />
               מספר טלפון
             </Label>
@@ -161,57 +105,57 @@ export default function RegisterPage() {
               type="tel"
               {...register('phone_number')}
               placeholder="050-0000000"
-              className="h-11 rounded-xl border-[#E5E5E5]"
+              className="h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40"
               dir="ltr"
             />
             {errors.phone_number
-              ? <p className="text-red-500 text-xs">{errors.phone_number.message}</p>
-              : <p className="text-[#A3A3A3] text-xs">מספר הטלפון עוזר לנו למנוע פרופילים פיקטיביים</p>
+              ? <p className="text-red-300 text-xs">{errors.phone_number.message}</p>
+              : <p className="text-white/45 text-xs">מספר הטלפון עוזר לנו למנוע פרופילים פיקטיביים</p>
             }
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[#0A0A0A] font-medium text-sm">סיסמה</Label>
+            <Label className="text-white/90 font-medium text-sm">סיסמה</Label>
             <div className="relative">
               <Input
                 type={showPassword ? 'text' : 'password'}
                 {...register('password')}
-                className="h-11 rounded-xl border-[#E5E5E5]"
+                className="h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40"
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 end-3 flex items-center text-[#A3A3A3]">
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 end-3 flex items-center text-white/50 hover:text-white">
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
+            {errors.password && <p className="text-red-300 text-xs">{errors.password.message}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[#0A0A0A] font-medium text-sm">אימות סיסמה</Label>
+            <Label className="text-white/90 font-medium text-sm">אימות סיסמה</Label>
             <div className="relative">
               <Input
                 type={showConfirm ? 'text' : 'password'}
                 {...register('confirm_password')}
-                className="h-11 rounded-xl border-[#E5E5E5]"
+                className="h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40"
               />
-              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 end-3 flex items-center text-[#A3A3A3]">
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 end-3 flex items-center text-white/50 hover:text-white">
                 {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {errors.confirm_password && <p className="text-red-500 text-xs">{errors.confirm_password.message}</p>}
+            {errors.confirm_password && <p className="text-red-300 text-xs">{errors.confirm_password.message}</p>}
           </div>
 
           <Button
             type="submit"
-            className="w-full bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-11 font-bold text-base"
+            className="w-full bg-[#FFD24A] hover:bg-[#f5c324] text-[#0A0A0A] rounded-2xl h-11 font-bold text-base"
             disabled={isLoading}
           >
             {isLoading ? 'יוצר חשבון...' : 'יצירת חשבון'}
           </Button>
         </form>
 
-        <div className="text-center text-sm text-[#737373]">
+        <div className="text-center text-sm text-white/60">
           יש לך כבר חשבון?{' '}
-          <Link href="/login" className="text-[#0A0A0A] font-bold hover:underline">
+          <Link href="/login" className="text-[#FFD24A] font-bold hover:underline">
             כניסה
           </Link>
         </div>

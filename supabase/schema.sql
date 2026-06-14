@@ -393,6 +393,8 @@ ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS phone_number       TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS birth_year         INTEGER CHECK (birth_year > 1930 AND birth_year < 2010),
   ADD COLUMN IF NOT EXISTS relationship_goal  TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS children_count     INTEGER NOT NULL DEFAULT 0
+                             CHECK (children_count >= 0 AND children_count <= 20),
   ADD COLUMN IF NOT EXISTS children_future    TEXT NOT NULL DEFAULT ''
                              CHECK (children_future IN ('','want_must','want_sometime','undecided','dont_want','have_maybe_more','have_enough')),
   ADD COLUMN IF NOT EXISTS seeking_status     TEXT[] NOT NULL DEFAULT '{}',
