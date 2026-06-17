@@ -23,13 +23,13 @@ export default function WelcomePage() {
         <div className="w-full flex flex-col gap-3">
           <Link
             href="/register"
-            className="w-full text-center bg-[#FFD24A] text-[#0A0A0A] text-lg font-bold py-4 rounded-full shadow-lg shadow-black/30 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full text-center bg-[#FFD24A] text-[#0A0A0A] text-base font-bold py-3 rounded-full shadow-lg shadow-black/30 transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
             יצירת חשבון
           </Link>
           <Link
             href="/login"
-            className="w-full text-center bg-white/95 text-[#0A0A0A] text-lg font-bold py-4 rounded-full transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full text-center bg-white/95 text-[#0A0A0A] text-base font-bold py-3 rounded-full transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
             יש לי כבר חשבון
           </Link>

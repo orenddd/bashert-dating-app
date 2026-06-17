@@ -22,6 +22,11 @@ const frankRuhl = Frank_Ruhl_Libre({
 export const metadata: Metadata = {
   title: 'מצאתי אותך — הכרויות',
   description: 'אפליקציית ההיכרויות הישראלית — מצא את הזיווג שלך',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

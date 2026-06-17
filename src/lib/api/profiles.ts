@@ -126,7 +126,7 @@ export async function upsertProfile(data: Partial<DbProfile> & { user_id: string
 
   if (error) {
     console.error('upsertProfile error:', error)
-    return null
+    throw new Error(error.message)
   }
   return profile
 }

@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase/client'
 import { ArrowRight, ArrowLeft, Camera, X, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { YearWheel } from '@/components/shared/YearWheel'
+import { CityAutocomplete } from '@/components/shared/CityAutocomplete'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ interface FormData {
   distance_pref_km: number
   religion: string[]
   city: string
+  latitude: number | null
+  longitude: number | null
   residence_intent: string[]
   photos: File[]
   languages: string[]
@@ -57,6 +61,26 @@ interface FormData {
   open_food: string
 }
 
+// מיפוי בחירת הדתיות (כולל ערכים "עשירים") לערך תקין בעמודת enum של ה-DB
+function mapReligiousLevel(value?: string): 'hiloni' | 'masorti' | 'dati_light' | 'dati' | 'haredi' {
+  switch (value) {
+    case 'hiloni':
+    case 'hiloni_heart':
+      return 'hiloni'
+    case 'masorti':
+    case 'masorti_lite':
+      return 'masorti'
+    case 'dati_light':
+      return 'dati_light'
+    case 'dati':
+      return 'dati'
+    case 'haredi':
+      return 'haredi'
+    default:
+      return 'masorti'
+  }
+}
+
 // ─── Helper Components ────────────────────────────────────────────────────────
 
 function MultiSelectButtons({
@@ -64,14 +88,16 @@ function MultiSelectButtons({
   selected,
   onToggle,
   max,
+  fullWidth,
 }: {
   options: { value: string; label: string }[]
   selected: string[]
   onToggle: (v: string) => void
   max?: number
+  fullWidth?: boolean
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={cn(fullWidth ? 'flex flex-col gap-2' : 'flex flex-wrap gap-2')}>
       {options.map((opt) => {
         const isSelected = selected.includes(opt.value)
         const atMax = max !== undefined && selected.length >= max && !isSelected
@@ -81,7 +107,8 @@ function MultiSelectButtons({
             type="button"
             onClick={() => !atMax && onToggle(opt.value)}
             className={cn(
-              'px-4 py-2.5 rounded-2xl text-sm font-medium border-2 transition-all text-right',
+              'rounded-2xl text-sm font-medium border-2 transition-all text-right',
+              fullWidth ? 'w-full px-4 py-3' : 'px-4 py-2.5',
               isSelected
                 ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
                 : atMax
@@ -231,6 +258,8 @@ export default function SetupProfilePage() {
     distance_pref_km: 50,
     religion: [],
     city: '',
+    latitude: null,
+    longitude: null,
     residence_intent: [],
     photos: [],
     languages: [],
@@ -260,6 +289,14 @@ export default function SetupProfilePage() {
 
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
     setForm(prev => ({ ...prev, [k]: v }))
+
+  // ─── ניסוח לפי מגדר ──────────────────────────────────────────────────────────
+  const isFemale = form.gender === 'female'
+  // טקסט לפי המגדר של המשתמש/ת (ברירת מחדל: לשון זכר עד הבחירה)
+  const gSelf = (male: string, female: string) => (isFemale ? female : male)
+  // טקסט המתאר את בן/בת הזוג (המגדר ההפוך): גבר מחפש אישה, אישה מחפשת גבר
+  const gPartner = (femalePartner: string, malePartner: string) =>
+    (isFemale ? malePartner : femalePartner)
 
   const toggleMulti = (field: keyof FormData, value: string) => {
     const arr = form[field] as string[]
@@ -370,8 +407,10 @@ export default function SetupProfilePage() {
         age_pref_min: form.age_pref_min,
         age_pref_max: form.age_pref_max,
         distance_pref_km: form.distance_pref_km,
-        religious_level: (form.religion[0] ?? 'masorti') as 'hiloni' | 'masorti' | 'dati_light' | 'dati' | 'haredi',
+        religious_level: mapReligiousLevel(form.religion[0]),
         city: form.city,
+        latitude: form.latitude,
+        longitude: form.longitude,
         residence_intent: form.residence_intent,
         languages: form.languages,
         romantic_vision: form.romantic_vision,
@@ -496,18 +535,14 @@ export default function SetupProfilePage() {
         {/* ── Step: Birth Year ── */}
         {currentStep === 'birth_year' && (
           <div>
-            <StepHeader title="שנת לידה" subtitle="כמה גרוסים אתה?" />
-            <Input
-              type="number"
+            <StepHeader title="שנת לידה" subtitle="באיזו שנה נולדת?" />
+            <YearWheel
               value={form.birth_year}
-              onChange={e => set('birth_year', e.target.value)}
-              placeholder="1990"
               min={1944}
               max={2006}
-              className="h-16 rounded-2xl border-[#E5E5E5] text-3xl font-bold text-center"
-              dir="ltr"
+              onChange={v => set('birth_year', v)}
             />
-            <p className="text-xs text-[#A3A3A3] mt-2 text-center">גיל נגזר מהשנה בלבד — לא תאריך מלא</p>
+            <p className="text-xs text-[#A3A3A3] mt-4 text-center">גלגל/י לשנה הנכונה — הגיל נגזר מהשנה בלבד</p>
           </div>
         )}
 
@@ -544,9 +579,9 @@ export default function SetupProfilePage() {
             <StepHeader title="מה הסטטוס שלך?" />
             <SingleSelectButtons
               options={[
-                { value: 'single', label: 'רווק / רווקה' },
-                { value: 'divorced', label: 'גרוש / גרושה' },
-                { value: 'widowed', label: 'אלמן / אלמנה' },
+                { value: 'single', label: gSelf('רווק', 'רווקה') },
+                { value: 'divorced', label: gSelf('גרוש', 'גרושה') },
+                { value: 'widowed', label: gSelf('אלמן', 'אלמנה') },
               ]}
               selected={form.marital_status}
               onSelect={v => set('marital_status', v as FormData['marital_status'])}
@@ -557,7 +592,7 @@ export default function SetupProfilePage() {
         {/* ── Step: Children Count ── */}
         {currentStep === 'children_count' && (
           <div>
-            <StepHeader title="כמה ילדים יש לך?" subtitle="גם לרווק/ה יכולים להיות ילדים — והכל בסדר גמור 💛" />
+            <StepHeader title="כמה ילדים יש לך?" subtitle={gSelf('גם לרווק יכולים להיות ילדים — והכל בסדר גמור 💛', 'גם לרווקה יכולים להיות ילדים — והכל בסדר גמור 💛')} />
             <button
               type="button"
               onClick={() => set('children_count', '0')}
@@ -609,15 +644,16 @@ export default function SetupProfilePage() {
         {/* ── Step: Relationship Goal ── */}
         {currentStep === 'relationship_goal' && (
           <div>
-            <StepHeader title="מה אני מחפש?" subtitle="אפשר לבחור יותר מאחד" />
+            <StepHeader title={gSelf('מה אני מחפש?', 'מה אני מחפשת?')} subtitle="אפשר לבחור יותר מאחד" />
             <MultiSelectButtons
+              fullWidth
               options={[
                 { value: 'marriage', label: '💍 חתונה וחמין בשבת' },
                 { value: 'serious_easy', label: '☕ קשר רציני בקצב רגוע וקליל' },
                 { value: 'chapter2', label: '🌱 פרק ב׳' },
                 { value: 'chemistry', label: '✨ כימיה טובה ומשם נראה' },
                 { value: 'dating', label: '😊 היכרות קלילה / דייטינג בכיף' },
-                { value: 'just_looking', label: '👀 רק בודק מה יש פה באפליקציה 😅' },
+                { value: 'just_looking', label: gSelf('👀 רק בודק מה יש פה באפליקציה 😅', '👀 רק בודקת מה יש פה באפליקציה 😅') },
               ]}
               selected={form.relationship_goal}
               onToggle={v => toggleMulti('relationship_goal', v)}
@@ -628,7 +664,7 @@ export default function SetupProfilePage() {
         {/* ── Step: Children Future ── */}
         {currentStep === 'children_future' && (
           <div>
-            <StepHeader title="ילדים בעתיד" subtitle="איפה אתה עומד בנושא?" />
+            <StepHeader title="ילדים בעתיד" subtitle={gSelf('איפה אתה עומד בנושא?', 'איפה את עומדת בנושא?')} />
             <SingleSelectButtons
               options={[
                 { value: 'want_must', label: '👨‍👩‍👧 רוצה משפחה וילדים — זה חובה מבחינתי' },
@@ -647,12 +683,12 @@ export default function SetupProfilePage() {
         {/* ── Step: Seeking Partner ── */}
         {currentStep === 'seeking_partner' && (
           <div>
-            <StepHeader title="האחת שלי / האחד שלי" subtitle="מה הסטטוס המועדף? (אפשר כמה)" />
+            <StepHeader title={gPartner('האחת שלי', 'האחד שלי')} subtitle="מה הסטטוס המועדף? (אפשר כמה)" />
             <MultiSelectButtons
               options={[
-                { value: 'single', label: 'רווקה / רווק' },
-                { value: 'divorced', label: 'גרושה / גרוש' },
-                { value: 'widowed', label: 'אלמנה / אלמן' },
+                { value: 'single', label: gPartner('רווקה', 'רווק') },
+                { value: 'divorced', label: gPartner('גרושה', 'גרוש') },
+                { value: 'widowed', label: gPartner('אלמנה', 'אלמן') },
               ]}
               selected={form.seeking_status}
               onToggle={v => toggleMulti('seeking_status', v)}
@@ -662,7 +698,7 @@ export default function SetupProfilePage() {
               <SingleSelectButtons
                 options={[
                   { value: 'yes', label: '✅ עם ילדים — בסדר גמור' },
-                  { value: 'no', label: '🚫 מעדיפ/ה ללא ילדים' },
+                  { value: 'no', label: gSelf('🚫 מעדיף ללא ילדים', '🚫 מעדיפה ללא ילדים') },
                   { value: 'dont_mind', label: '💛 לא משנה לי' },
                 ]}
                 selected={form.seeking_with_kids}
@@ -710,15 +746,15 @@ export default function SetupProfilePage() {
         {/* ── Step: Religion ── */}
         {currentStep === 'religion' && (
           <div>
-            <StepHeader title="דת ורמת דתיות" subtitle="איך תגדיר את עצמך?" />
+            <StepHeader title="דת ורמת דתיות" subtitle={gSelf('איך תגדיר את עצמך?', 'איך תגדירי את עצמך?')} />
             <MultiSelectButtons
               options={[
-                { value: 'hiloni', label: '☀️ חילוני' },
-                { value: 'hiloni_heart', label: '💙 יהודי בלב, חילוני בלו״ז. בית כנסת — רק בבר מצווה' },
-                { value: 'masorti', label: '🕎 מסורתי' },
-                { value: 'masorti_lite', label: '🍷 עושה קידוש בשישי ואז מדליק את הטלוויזיה' },
-                { value: 'dati_light', label: '📖 דתי לייט — שומר שבת וכשרות, אבל זורם עם העולם' },
-                { value: 'dati', label: '✡️ דתי על מלא — בית דתי למהדרין, תפילות, חגים — כל החבילה' },
+                { value: 'hiloni', label: gSelf('☀️ חילוני', '☀️ חילונית') },
+                { value: 'hiloni_heart', label: gSelf('💙 יהודי בלב, חילוני בלו״ז. בית כנסת — רק בבר מצווה', '💙 יהודייה בלב, חילונית בלו״ז. בית כנסת — רק בבר מצווה') },
+                { value: 'masorti', label: gSelf('🕎 מסורתי', '🕎 מסורתית') },
+                { value: 'masorti_lite', label: gSelf('🍷 עושה קידוש בשישי ואז מדליק את הטלוויזיה', '🍷 עושה קידוש בשישי ואז מדליקה את הטלוויזיה') },
+                { value: 'dati_light', label: gSelf('📖 דתי לייט — שומר שבת וכשרות, אבל זורם עם העולם', '📖 דתייה לייט — שומרת שבת וכשרות, אבל זורמת עם העולם') },
+                { value: 'dati', label: gSelf('✡️ דתי על מלא — בית דתי למהדרין, תפילות, חגים — כל החבילה', '✡️ דתייה על מלא — בית דתי למהדרין, תפילות, חגים — כל החבילה') },
               ]}
               selected={form.religion}
               onToggle={v => toggleMulti('religion', v)}
@@ -729,12 +765,15 @@ export default function SetupProfilePage() {
         {/* ── Step: Location ── */}
         {currentStep === 'location' && (
           <div>
-            <StepHeader title="איפה אתה גר?" subtitle="עיר מגורים" />
-            <Input
+            <StepHeader title={gSelf('איפה אתה גר?', 'איפה את גרה?')} subtitle="התחל/י להקליד והמערכת תשלים את שם העיר" />
+            <CityAutocomplete
               value={form.city}
-              onChange={e => set('city', e.target.value)}
               placeholder="תל אביב, ניו יורק, לוס אנג׳לס..."
-              className="h-14 rounded-2xl border-[#E5E5E5] text-base"
+              onSelect={sel => {
+                set('city', sel.city)
+                if (sel.latitude !== null) set('latitude', sel.latitude)
+                if (sel.longitude !== null) set('longitude', sel.longitude)
+              }}
             />
           </div>
         )}
@@ -748,8 +787,8 @@ export default function SetupProfilePage() {
                 { value: 'israel_stay', label: '🇮🇱 בארץ ולא זז — טוב לי פה 😎' },
                 { value: 'israel_maybe_reloc', label: '✈️ בארץ… אבל אהבה טובה יכולה לשלוח אותי לרילוקיישן' },
                 { value: 'abroad_return_soon', label: '🔄 כרגע בחו״ל, אבל ישראל קוראת לי לחזור בשנה-שנתיים' },
-                { value: 'abroad_return_later', label: '⏳ כרגע בחו״ל, כנראה חוזר/ת בעוד כמה שנים' },
-                { value: 'abroad_stay', label: '🌍 בחו״ל וטפו טפו, בינתיים נשאר' },
+                { value: 'abroad_return_later', label: gSelf('⏳ כרגע בחו״ל, כנראה חוזר בעוד כמה שנים', '⏳ כרגע בחו״ל, כנראה חוזרת בעוד כמה שנים') },
+                { value: 'abroad_stay', label: gSelf('🌍 בחו״ל וטפו טפו, בינתיים נשאר', '🌍 בחו״ל וטפו טפו, בינתיים נשארת') },
                 { value: 'flexible', label: '💕 תלוי בזוגיות — הבית זה איפה שיש חיבור טוב' },
               ]}
               selected={form.residence_intent}
@@ -826,7 +865,7 @@ export default function SetupProfilePage() {
         {/* ── Step: Languages ── */}
         {currentStep === 'languages' && (
           <div>
-            <StepHeader title="באילו שפות אתה מדבר?" subtitle="אפשר לבחור כמה" />
+            <StepHeader title={gSelf('באילו שפות אתה מדבר?', 'באילו שפות את מדברת?')} subtitle="אפשר לבחור כמה" />
             <MultiSelectButtons
               options={[
                 { value: 'he', label: '🇮🇱 עברית' },
@@ -895,7 +934,7 @@ export default function SetupProfilePage() {
                 { value: 'beach_matkot', label: '🏖️ ים, מטקות ואבטיח' },
                 { value: 'cafe', label: '☕ בית קפה ברגוע' },
                 { value: 'synagogue', label: '🕍 בית כנסת על הבוקר' },
-                { value: 'sleep_late', label: '😴 נוחר עד 12:00 ואז ישיר לחמין של שבת' },
+                { value: 'sleep_late', label: gSelf('😴 נוחר עד 12:00 ואז ישיר לחמין של שבת', '😴 נוחרת עד 12:00 ואז ישר לחמין של שבת') },
               ]}
               selected={form.saturday_morning}
               onToggle={v => toggleMulti('saturday_morning', v)}
@@ -906,13 +945,13 @@ export default function SetupProfilePage() {
         {/* ── Step: Hobbies (optional) ── */}
         {currentStep === 'hobbies' && (
           <div>
-            <StepHeader title="מה התחביבים שלך?" optional subtitle="בחר מהרשימה ו/או כתוב בעצמך" />
+            <StepHeader title="מה התחביבים שלך?" optional subtitle={gSelf('בחר מהרשימה ו/או כתוב בעצמך', 'בחרי מהרשימה ו/או כתבי בעצמך')} />
             <MultiSelectButtons
               options={[
                 { value: 'soccer', label: '⚽ כדורגל ישראלי/אירופאי' },
                 { value: 'sport', label: '🏃 ספורט / כושר / ריצה' },
                 { value: 'torah', label: '📜 שיעורי תורה' },
-                { value: 'cooking', label: '👨‍🍳 בשלן תותח — עונה הבאה אני במסטאר שף' },
+                { value: 'cooking', label: gSelf('👨‍🍳 בשלן תותח — עונה הבאה אני במאסטר שף', '👩‍🍳 בשלנית תותחית — עונה הבאה אני במאסטר שף') },
                 { value: 'nightlife', label: '🍽️ מסעדות, ברים ויציאות בעיר' },
                 { value: 'series', label: '📺 צפייה בסדרות / סרטים' },
                 { value: 'music', label: '🎵 מוזיקה (לשמוע / לנגן / הופעות)' },
@@ -933,7 +972,7 @@ export default function SetupProfilePage() {
               }}
             />
             <div className="mt-4 space-y-1.5">
-              <label className="text-sm font-medium text-[#0A0A0A]">משהו אחר לגמרי? כתוב ✍️</label>
+              <label className="text-sm font-medium text-[#0A0A0A]">{gSelf('משהו אחר לגמרי? כתוב ✍️', 'משהו אחר לגמרי? כתבי ✍️')}</label>
               <Input
                 value={form.hobby_custom}
                 onChange={e => set('hobby_custom', e.target.value)}
@@ -947,25 +986,25 @@ export default function SetupProfilePage() {
         {/* ── Step: Open Required ── */}
         {currentStep === 'open_required' && (
           <div>
-            <StepHeader title="קצת עליך" subtitle="שאלות חובה — אל תפחד להיות אתה" />
+            <StepHeader title="קצת עליך" subtitle={gSelf('שאלות חובה — אל תפחד להיות אתה', 'שאלות חובה — אל תפחדי להיות את')} />
             <div className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-[#0A0A0A]">ספר על עצמך... *</label>
+                <label className="text-sm font-bold text-[#0A0A0A]">{gSelf('ספר על עצמך... *', 'ספרי על עצמך... *')}</label>
                 <Textarea
                   value={form.open_bio}
                   onChange={e => set('open_bio', e.target.value)}
-                  placeholder="מי אתה, מה אתה אוהב, מה מניע אותך..."
+                  placeholder={gSelf('מי אתה, מה אתה אוהב, מה מניע אותך...', 'מי את, מה את אוהבת, מה מניע אותך...')}
                   className="min-h-32 rounded-2xl border-[#E5E5E5] resize-none"
                   maxLength={600}
                 />
                 <p className="text-xs text-[#A3A3A3] text-end">{form.open_bio.length}/600</p>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-[#0A0A0A]">מה אתה מחפש בזוגיות? *</label>
+                <label className="text-sm font-bold text-[#0A0A0A]">{gSelf('מה אתה מחפש בזוגיות? *', 'מה את מחפשת בזוגיות? *')}</label>
                 <Textarea
                   value={form.open_seeking}
                   onChange={e => set('open_seeking', e.target.value)}
-                  placeholder="בן/בת זוג אידיאלי/ת בעיניי..."
+                  placeholder={gPartner('בת זוג אידיאלית בעיניי...', 'בן זוג אידיאלי בעיניי...')}
                   className="min-h-28 rounded-2xl border-[#E5E5E5] resize-none"
                   maxLength={400}
                 />
@@ -978,24 +1017,24 @@ export default function SetupProfilePage() {
         {/* ── Step: Open Optional ── */}
         {currentStep === 'open_optional' && (
           <div>
-            <StepHeader title="שאלות נוספות" subtitle="כולן אופציונליות — ענה על מה שמתחשק" optional />
+            <StepHeader title="שאלות נוספות" subtitle={gSelf('כולן אופציונליות — ענה על מה שמתחשק', 'כולן אופציונליות — עני על מה שמתחשק')} optional />
             <div className="space-y-5">
               {[
-                { key: 'open_dealbreaker' as const, label: 'מה הדיל ברייקר שלך?', ph: 'דבר שלא תהיה מוכן/ה לוותר עליו...' },
-                { key: 'open_work' as const, label: 'מה אתה עושה בחיים חוץ מלגלול פה...', ph: 'עבודה / קריירה / עיסוק...' },
+                { key: 'open_dealbreaker' as const, label: 'מה הדיל ברייקר שלך?', ph: gSelf('דבר שלא תהיה מוכן לוותר עליו...', 'דבר שלא תהיי מוכנה לוותר עליו...') },
+                { key: 'open_work' as const, label: gSelf('מה אתה עושה בחיים חוץ מלגלול פה...', 'מה את עושה בחיים חוץ מלגלול פה...'), ph: 'עבודה / קריירה / עיסוק...' },
                 { key: 'open_quote' as const, label: 'משפט לחיים...', ph: 'משפט שמנחה אותך...' },
-                { key: 'open_loves' as const, label: 'הנה כמה דברים שאני אוהב...', ph: '3 דברים שאתה אוהב...' },
+                { key: 'open_loves' as const, label: gSelf('הנה כמה דברים שאני אוהב...', 'הנה כמה דברים שאני אוהבת...'), ph: gSelf('3 דברים שאתה אוהב...', '3 דברים שאת אוהבת...') },
                 { key: 'open_strength' as const, label: 'החוזקה הכי גדולה שלי בחיים היא...', ph: 'הכוח שלך...' },
                 { key: 'open_future_self' as const, label: 'איך אני רואה את העתיד שלי...', ph: 'החלום / התוכנית...' },
                 { key: 'open_future_us' as const, label: 'איך אני רואה את העתיד שלנו...', ph: 'איך נראית מערכת יחסים מושלמת בעינייך...' },
                 { key: 'open_lie' as const, label: 'שקר שאני אוהב לספר...', ph: '😄' },
                 { key: 'open_movie' as const, label: 'אם היו עושים עליך סרט — איך היו קוראים לו?', ph: 'שם הסרט...' },
-                { key: 'open_crazy' as const, label: 'מה הדבר הכי לא הגיוני שעשית?', ph: 'כאן אפשר לפרוא...' },
+                { key: 'open_crazy' as const, label: gSelf('מה הדבר הכי לא הגיוני שעשית?', 'מה הדבר הכי לא הגיוני שעשית?'), ph: 'כאן אפשר להשתולל...' },
                 { key: 'open_first_impression' as const, label: 'מה הדבר הראשון שאנשים חושבים עליך?', ph: 'מה אומרים עליך...' },
-                { key: 'open_song' as const, label: 'אם היית צריך לבחור שיר כנושא החיים שלך — מה הוא היה?', ph: 'שם השיר ומי שר...' },
-                { key: 'open_weird_habit' as const, label: 'מה ההרגל הכי מוזר שלך?', ph: 'תתעז לשתף...' },
-                { key: 'open_childish' as const, label: 'מה הדבר הכי ילדותי שאתה עדיין עושה היום?', ph: '😄' },
-                { key: 'open_food' as const, label: 'מה האוכל שאתה יכול לאכול כל יום?', ph: 'אוכל שאתה ממש אוהב...' },
+                { key: 'open_song' as const, label: gSelf('אם היית צריך לבחור שיר כנושא החיים שלך — מה הוא היה?', 'אם היית צריכה לבחור שיר כנושא החיים שלך — מה הוא היה?'), ph: 'שם השיר ומי שר...' },
+                { key: 'open_weird_habit' as const, label: 'מה ההרגל הכי מוזר שלך?', ph: gSelf('תתעז לשתף...', 'תתעזי לשתף...') },
+                { key: 'open_childish' as const, label: gSelf('מה הדבר הכי ילדותי שאתה עדיין עושה היום?', 'מה הדבר הכי ילדותי שאת עדיין עושה היום?'), ph: '😄' },
+                { key: 'open_food' as const, label: gSelf('מה האוכל שאתה יכול לאכול כל יום?', 'מה האוכל שאת יכולה לאכול כל יום?'), ph: gSelf('אוכל שאתה ממש אוהב...', 'אוכל שאת ממש אוהבת...') },
               ].map(({ key, label, ph }) => (
                 <div key={key} className="space-y-1.5">
                   <label className="text-sm font-medium text-[#0A0A0A]">{label}</label>
