@@ -11,24 +11,44 @@ export interface CitySelection {
   longitude: number | null
 }
 
-interface PhotonFeature {
-  geometry: { coordinates: [number, number] }
-  properties: {
-    name?: string
+// תוצאה מ-Nominatim (OpenStreetMap) בפורמט jsonv2
+interface NominatimResult {
+  lat: string
+  lon: string
+  name?: string
+  display_name?: string
+  category?: string
+  type?: string
+  addresstype?: string
+  address?: {
     city?: string
+    town?: string
+    village?: string
+    municipality?: string
     state?: string
     country?: string
-    countrycode?: string
-    osm_key?: string
-    osm_value?: string
+    country_code?: string
   }
 }
 
-const PLACE_VALUES = ['city', 'town', 'village', 'hamlet', 'municipality']
+const PLACE_TYPES = ['city', 'town', 'village', 'hamlet', 'municipality', 'suburb']
 
-function labelFor(p: PhotonFeature['properties']): string {
-  const name = p.name || p.city || ''
-  const parts = [name, p.state, p.country].filter(Boolean)
+// ערים ב-jsonv2 חוזרות לרוב כ-category=boundary/type=administrative עם addresstype=city
+function isSettlement(r: NominatimResult): boolean {
+  return (
+    PLACE_TYPES.includes(r.addresstype ?? '') ||
+    (r.category === 'place' && PLACE_TYPES.includes(r.type ?? ''))
+  )
+}
+
+function cityNameOf(r: NominatimResult): string {
+  const a = r.address ?? {}
+  return r.name || a.city || a.town || a.village || a.municipality || (r.display_name?.split(',')[0] ?? '')
+}
+
+function labelFor(r: NominatimResult): string {
+  const a = r.address ?? {}
+  const parts = [cityNameOf(r), a.state, a.country].filter(Boolean)
   return parts.join(', ')
 }
 
@@ -42,7 +62,7 @@ export function CityAutocomplete({
   placeholder?: string
 }) {
   const [query, setQuery] = useState(value)
-  const [results, setResults] = useState<PhotonFeature[]>([])
+  const [results, setResults] = useState<NominatimResult[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
@@ -58,7 +78,7 @@ export function CityAutocomplete({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // חיפוש עם debounce מול Photon (OpenStreetMap) — ללא מפתח, תומך CORS ועברית
+  // חיפוש עם debounce מול Nominatim (OpenStreetMap) — ללא מפתח, תומך בעברית ו-CORS
   useEffect(() => {
     if (justSelected.current) {
       justSelected.current = false
@@ -74,18 +94,16 @@ export function CityAutocomplete({
     const ctrl = new AbortController()
     const t = setTimeout(async () => {
       try {
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=he&limit=8`
+        const url =
+          `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1` +
+          `&accept-language=he&limit=10&q=${encodeURIComponent(q)}`
         const res = await fetch(url, { signal: ctrl.signal })
-        const json = await res.json()
-        const feats: PhotonFeature[] = (json.features ?? []).filter(
-          (f: PhotonFeature) =>
-            f.properties.osm_key === 'place' &&
-            PLACE_VALUES.includes(f.properties.osm_value ?? '')
-        )
+        const json: NominatimResult[] = await res.json()
+        const feats = (Array.isArray(json) ? json : []).filter(isSettlement)
         // הסרת כפילויות לפי תווית
         const seen = new Set<string>()
-        const unique = feats.filter((f) => {
-          const l = labelFor(f.properties)
+        const unique = feats.filter((r) => {
+          const l = labelFor(r)
           if (seen.has(l)) return false
           seen.add(l)
           return true
@@ -98,25 +116,24 @@ export function CityAutocomplete({
       } finally {
         setLoading(false)
       }
-    }, 300)
+    }, 350)
     return () => {
       clearTimeout(t)
       ctrl.abort()
     }
   }, [query])
 
-  const choose = (f: PhotonFeature) => {
-    const label = f.properties.name || f.properties.city || query
-    const [lon, lat] = f.geometry.coordinates
+  const choose = (r: NominatimResult) => {
+    const label = cityNameOf(r) || query
     justSelected.current = true
     setQuery(label)
     setOpen(false)
     setResults([])
     onSelect({
       city: label,
-      country: f.properties.countrycode?.toUpperCase() || f.properties.country || '',
-      latitude: lat ?? null,
-      longitude: lon ?? null,
+      country: r.address?.country_code?.toUpperCase() || r.address?.country || '',
+      latitude: r.lat ? Number(r.lat) : null,
+      longitude: r.lon ? Number(r.lon) : null,
     })
   }
 
@@ -157,13 +174,13 @@ export function CityAutocomplete({
 
       {open && results.length > 0 && (
         <ul className="absolute z-50 mt-2 w-full bg-white rounded-2xl border border-[#E5E5E5] shadow-lg overflow-hidden max-h-72 overflow-y-auto">
-          {results.map((f, i) => (
+          {results.map((r, i) => (
             <li key={i}>
               <button
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  choose(f)
+                  choose(r)
                 }}
                 className={cn(
                   'w-full text-right px-4 py-3 flex items-center gap-2 transition-colors',
@@ -171,7 +188,7 @@ export function CityAutocomplete({
                 )}
               >
                 <MapPin className="w-4 h-4 text-[#A3A3A3] flex-none" />
-                <span className="text-sm text-[#0A0A0A] truncate">{labelFor(f.properties)}</span>
+                <span className="text-sm text-[#0A0A0A] truncate">{labelFor(r)}</span>
               </button>
             </li>
           ))}
