@@ -59,19 +59,19 @@ export function YearWheel({
 
   return (
     <div className="relative mx-auto select-none" style={{ height: VISIBLE * ITEM_H }}>
-      {/* פס בחירה מרכזי */}
+      {/* פס בחירה מרכזי — מאחורי המספרים (z-0) כדי שהשנה הנבחרת תהיה גלויה */}
       <div
-        className="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-2xl bg-[#F5F5F5] border-2 border-[#0A0A0A] pointer-events-none"
+        className="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-2xl bg-[#F5F5F5] border-2 border-[#0A0A0A] pointer-events-none z-0"
         style={{ height: ITEM_H }}
       />
-      {/* דהייה למעלה ולמטה */}
-      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+      {/* דהייה למעלה ולמטה — מעל הכל */}
+      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white to-transparent pointer-events-none z-20" />
+      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none z-20" />
 
       <div
         ref={ref}
         onScroll={handleScroll}
-        className="h-full overflow-y-scroll no-scrollbar"
+        className="relative z-10 h-full overflow-y-scroll no-scrollbar"
         style={{ scrollSnapType: 'y mandatory' }}
       >
         <div style={{ paddingTop: PAD, paddingBottom: PAD }}>
