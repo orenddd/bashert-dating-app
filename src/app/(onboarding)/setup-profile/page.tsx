@@ -81,6 +81,21 @@ function mapReligiousLevel(value?: string): 'hiloni' | 'masorti' | 'dati_light' 
   }
 }
 
+// המרת קלט מספרי מהטופס לערך שלם תקין בטווח ה-CHECK של ה-DB (מונע constraint violation)
+function clampInt(value: string, min: number, max: number, fallback: number): number {
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(min, Math.min(max, n))
+}
+
+// כמו clampInt, אך מחזיר null אם הערך ריק או מחוץ לטווח (לשדות אופציונליים כמו גובה)
+function clampIntOrNull(value: string, min: number, max: number): number | null {
+  if (value === '' || value == null) return null
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < min || n > max) return null
+  return n
+}
+
 // ─── Helper Components ────────────────────────────────────────────────────────
 
 function MultiSelectButtons({
@@ -398,8 +413,8 @@ export default function SetupProfilePage() {
         gender: form.gender as 'male' | 'female',
         seeking: form.gender === 'male' ? 'female' : 'male',
         marital_status: form.marital_status as 'single' | 'divorced' | 'widowed',
-        children_count: form.children_count !== '' ? Number(form.children_count) : 0,
-        height_cm: form.height_cm ? Number(form.height_cm) : null,
+        children_count: clampInt(form.children_count, 0, 20, 0),
+        height_cm: clampIntOrNull(form.height_cm, 101, 249),
         relationship_goal: form.relationship_goal,
         children_future: form.children_future as import('@/lib/types/database').ChildrenFuture,
         seeking_status: form.seeking_status,
