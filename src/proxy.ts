@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password']
+const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/tracking']
 const SETUP_PATH = '/setup-profile'
 
 export async function proxy(request: NextRequest) {
@@ -47,7 +47,7 @@ export async function proxy(request: NextRequest) {
       .eq('user_id', session.user.id)
       .single()
 
-    const dest = profile?.profile_complete ? '/discover' : SETUP_PATH
+    const dest = profile?.profile_complete ? '/home' : SETUP_PATH
     return NextResponse.redirect(new URL(dest, request.url))
   }
 

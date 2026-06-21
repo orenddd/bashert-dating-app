@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowRight, ArrowLeft, Camera, X, Check } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { YearWheel } from '@/components/shared/YearWheel'
@@ -252,6 +252,13 @@ export default function SetupProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
+  // אינדיקציית התקדמות בעת הסיום (העלאת תמונות + שמירת פרופיל)
+  const [uploadState, setUploadState] = useState<{
+    active: boolean
+    current: number
+    total: number
+    label: string
+  }>({ active: false, current: 0, total: 0, label: '' })
 
   const defaultFirst = user?.profile?.first_name ?? ''
   const defaultLast = user?.profile?.last_name ?? ''
@@ -353,6 +360,12 @@ export default function SetupProfilePage() {
 
   const finish = async () => {
     setIsSaving(true)
+    setUploadState({
+      active: true,
+      current: 0,
+      total: form.photos.length,
+      label: form.photos.length > 0 ? 'מתחילים בהעלאת התמונות...' : 'שומרים את הפרופיל...',
+    })
     try {
       // ─── העלאת תמונות ל-Supabase Storage ─────────────────────────────────
       if (user?.id && form.photos.length > 0) {
@@ -368,6 +381,13 @@ export default function SetupProfilePage() {
           const path = `${user.id}/${Date.now()}-${i}.${ext}`
           const mediaType = file.type.startsWith('video') ? 'video'
             : file.type.startsWith('audio') ? 'audio' : 'image'
+
+          setUploadState({
+            active: true,
+            current: i,
+            total: form.photos.length,
+            label: `מעלה ${mediaType === 'video' ? 'סרטון' : mediaType === 'audio' ? 'הקלטה' : 'תמונה'} ${i + 1} מתוך ${form.photos.length}...`,
+          })
 
           const { data: uploaded, error: uploadErr } = await supabase.storage
             .from('profile-photos')
@@ -401,6 +421,12 @@ export default function SetupProfilePage() {
       }
 
       // ─── עדכון פרופיל ────────────────────────────────────────────────────
+      setUploadState({
+        active: true,
+        current: form.photos.length,
+        total: form.photos.length,
+        label: 'כמעט שם — שומרים את הפרופיל שלך... 💛',
+      })
       const hobbiesArr = [
         ...form.hobbies.split(',').map(h => h.trim()).filter(Boolean),
         ...(form.hobby_custom ? [form.hobby_custom.trim()] : []),
@@ -460,6 +486,7 @@ export default function SetupProfilePage() {
     } catch (err) {
       console.error('finish error:', err)
       toast.error('שגיאה בשמירת הפרופיל. נסה שנית.')
+      setUploadState(s => ({ ...s, active: false }))
     } finally {
       setIsSaving(false)
     }
@@ -487,8 +514,64 @@ export default function SetupProfilePage() {
     setForm(prev => ({ ...prev, photos: prev.photos.filter((_, idx) => idx !== i) }))
   }
 
+  // אחוז ההתקדמות בהעלאה (אם אין תמונות — מצב אינדטרמיננטי)
+  const uploadPct = uploadState.total > 0
+    ? Math.round((uploadState.current / uploadState.total) * 100)
+    : null
+
   return (
     <div className="min-h-screen bg-white">
+      {/* ── Overlay התקדמות סיום ── */}
+      {uploadState.active && (
+        <div className="fixed inset-0 z-[60] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center px-8">
+          {/* אנימציה: טבעות מתרחבות + אייקון */}
+          <div className="relative w-28 h-28 flex items-center justify-center mb-8">
+            <span className="absolute inset-0 rounded-full bg-[#0A0A0A]/10 animate-ping" />
+            <span className="absolute inset-2 rounded-full bg-[#0A0A0A]/10 animate-ping [animation-delay:300ms]" />
+            <span className="absolute inset-0 rounded-full border-[3px] border-[#E5E5E5] border-t-[#0A0A0A] animate-spin" />
+            <div className="relative w-16 h-16 rounded-full bg-[#0A0A0A] flex items-center justify-center">
+              {uploadPct === 100
+                ? <Sparkles className="w-7 h-7 text-[#FFD24A]" />
+                : <ImageUp className="w-7 h-7 text-white" />
+              }
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-[#0A0A0A] mb-1.5 text-center">בונים את הפרופיל שלך</h2>
+          <p className="text-[#737373] text-sm text-center mb-6 min-h-[20px]">{uploadState.label}</p>
+
+          {/* פס התקדמות */}
+          <div className="w-full max-w-xs">
+            <div className="w-full bg-[#F5F5F5] rounded-full h-2.5 overflow-hidden">
+              {uploadPct === null ? (
+                <div className="h-full w-1/3 bg-[#0A0A0A] rounded-full animate-[indeterminate_1.2s_ease-in-out_infinite]" />
+              ) : (
+                <div
+                  className="h-full bg-[#0A0A0A] rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.max(uploadPct, 6)}%` }}
+                />
+              )}
+            </div>
+            {uploadState.total > 0 && (
+              <p className="text-xs text-[#A3A3A3] text-center mt-3">
+                {Math.min(uploadState.current + (uploadPct === 100 ? 0 : 1), uploadState.total)} מתוך {uploadState.total} קבצים
+              </p>
+            )}
+          </div>
+
+          <p className="text-[11px] text-[#A3A3A3] text-center mt-8 max-w-[240px] leading-relaxed">
+            אנא אל תסגור/י את החלון — ההעלאה עשויה לקחת מספר שניות בהתאם לחיבור שלך 🙏
+          </p>
+
+          <style>{`
+            @keyframes indeterminate {
+              0% { margin-inline-start: -35%; }
+              100% { margin-inline-start: 100%; }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Progress bar */}
       <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-[#E5E5E5]">
         <div
