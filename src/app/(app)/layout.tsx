@@ -1,13 +1,18 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { AppNav } from '@/components/layout/AppNav'
 import { useAuth } from '@/components/shared/AuthProvider'
+
+// בשלב הנוכחי המערכת חסומה לפרופילים אחרים — רק הרשמה, בניית פרופיל
+// וצפייה/עריכה של הפרופיל האישי. מסכים אלו מופנים חזרה למסך הבית.
+const BLOCKED_PREFIXES = ['/discover', '/matches', '/messages', '/search']
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (isLoading) return
@@ -18,8 +23,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // אם אין פרופיל כלל, או שהפרופיל לא הושלם → שאלון
     if (!user.profile || !user.profile.profile_complete) {
       router.replace('/setup-profile')
+      return
     }
-  }, [user, isLoading, router])
+    // חסימת גישה לפרופילים אחרים — הפניה למסך הבית
+    if (BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
+      router.replace('/home')
+    }
+  }, [user, isLoading, router, pathname])
 
   if (isLoading) {
     return (

@@ -26,7 +26,7 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       await login(data.email, data.password)
-      window.location.href = '/discover'
+      window.location.href = '/home'
     } catch {
       toast.error('שגיאה בכניסה. בדוק את פרטיך ונסה שנית.')
     } finally {

@@ -81,7 +81,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (isLoading) return
     if (!user || !isAdmin) {
-      router.replace('/discover')
+      router.replace('/home')
     }
   }, [user, isLoading, isAdmin, router])
 

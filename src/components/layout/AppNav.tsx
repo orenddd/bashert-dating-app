@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Heart, MessageCircle, Search, Compass, User, MessageSquare, Shield } from 'lucide-react'
+import { Home, User, MessageSquare, Shield } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { FeedbackModal } from '@/components/shared/FeedbackModal'
@@ -17,11 +17,10 @@ export function AppNav() {
 
   const isAdmin = (user?.profile as unknown as Record<string, unknown>)?.is_admin === true
 
+  // בשלב זה המערכת פתוחה רק להרשמה, בניית פרופיל וצפייה/עריכה של הפרופיל האישי.
+  // ניווט לפרופילים אחרים (גילוי/לייקים/הודעות/חיפוש) מוסתר עד שיהיו התאמות.
   const navItems = [
-    { href: '/discover', icon: Compass, label: t.nav.discover },
-    { href: '/matches', icon: Heart, label: t.nav.matches },
-    { href: '/messages', icon: MessageCircle, label: t.nav.messages },
-    { href: '/search', icon: Search, label: t.nav.search },
+    { href: '/home', icon: Home, label: 'בית' },
     { href: '/profile/me', icon: User, label: t.nav.profile },
   ]
 

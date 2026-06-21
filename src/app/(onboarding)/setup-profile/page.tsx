@@ -456,7 +456,7 @@ export default function SetupProfilePage() {
       })
       toast.success('הפרופיל שלך מוכן! 🎉')
       // Full reload so AuthProvider re-fetches profile_complete from DB
-      window.location.href = '/discover'
+      window.location.href = '/home'
     } catch (err) {
       console.error('finish error:', err)
       toast.error('שגיאה בשמירת הפרופיל. נסה שנית.')
@@ -1085,7 +1085,7 @@ export default function SetupProfilePage() {
             disabled={!canProceed() || isSaving}
             className="flex-1 bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-12 font-bold disabled:opacity-40"
           >
-            {isSaving ? (form.photos.length > 0 ? 'מעלה תמונות...' : 'שומר...') : stepIndex === TOTAL - 1 ? '🎉 סיום ולגלות!' : (
+            {isSaving ? (form.photos.length > 0 ? 'מעלה תמונות...' : 'שומר...') : stepIndex === TOTAL - 1 ? '🎉 סיום ההרשמה' : (
               <>
                 המשך
                 <ArrowLeft className="w-4 h-4 ms-1" />
