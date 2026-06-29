@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { YearWheel } from '@/components/shared/YearWheel'
+import { NumberWheel } from '@/components/shared/NumberWheel'
 import { CityAutocomplete } from '@/components/shared/CityAutocomplete'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ import { CityAutocomplete } from '@/components/shared/CityAutocomplete'
 interface FormData {
   first_name: string
   last_name: string
+  phone_number: string
   birth_year: string
   gender: 'male' | 'female' | ''
   marital_status: 'single' | 'divorced' | 'widowed' | ''
@@ -30,6 +32,7 @@ interface FormData {
   age_pref_min: number
   age_pref_max: number
   distance_pref_km: number
+  distance_unlimited: boolean
   religion: string[]
   city: string
   latitude: number | null
@@ -98,21 +101,20 @@ function clampIntOrNull(value: string, min: number, max: number): number | null 
 
 // ─── Helper Components ────────────────────────────────────────────────────────
 
+// כפתורי בחירה מרובה — תמיד מסודרים אחד מתחת לשני (full width), בפונט קריא
 function MultiSelectButtons({
   options,
   selected,
   onToggle,
   max,
-  fullWidth,
 }: {
   options: { value: string; label: string }[]
   selected: string[]
   onToggle: (v: string) => void
   max?: number
-  fullWidth?: boolean
 }) {
   return (
-    <div className={cn(fullWidth ? 'flex flex-col gap-2' : 'flex flex-wrap gap-2')}>
+    <div className="flex flex-col gap-2.5">
       {options.map((opt) => {
         const isSelected = selected.includes(opt.value)
         const atMax = max !== undefined && selected.length >= max && !isSelected
@@ -122,17 +124,21 @@ function MultiSelectButtons({
             type="button"
             onClick={() => !atMax && onToggle(opt.value)}
             className={cn(
-              'rounded-2xl text-sm font-medium border-2 transition-all text-right',
-              fullWidth ? 'w-full px-4 py-3' : 'px-4 py-2.5',
+              'w-full px-4 py-3.5 rounded-2xl text-base font-medium border-2 transition-all text-right flex items-center gap-2',
               isSelected
                 ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
                 : atMax
                 ? 'opacity-40 cursor-not-allowed border-[#E5E5E5] text-[#A3A3A3]'
-                : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
+                : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A] active:scale-[0.99]'
             )}
           >
-            {isSelected && <Check className="w-3 h-3 inline me-1" />}
-            {opt.label}
+            <span className={cn(
+              'flex-none w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors',
+              isSelected ? 'bg-white border-white' : 'border-[#D4D4D4]'
+            )}>
+              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A0A0A]" />}
+            </span>
+            <span className="flex-1">{opt.label}</span>
           </button>
         )
       })}
@@ -157,15 +163,15 @@ function SingleSelectButtons({
           type="button"
           onClick={() => onSelect(opt.value)}
           className={cn(
-            'w-full text-right px-4 py-3 rounded-2xl border-2 transition-all',
+            'w-full text-right px-4 py-3.5 rounded-2xl border-2 transition-all active:scale-[0.99]',
             selected === opt.value
               ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
               : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
           )}
         >
-          <div className="font-medium text-sm">{opt.label}</div>
+          <div className="font-medium text-base">{opt.label}</div>
           {opt.desc && (
-            <div className={cn('text-xs mt-0.5', selected === opt.value ? 'text-white/60' : 'text-[#A3A3A3]')}>
+            <div className={cn('text-sm mt-0.5', selected === opt.value ? 'text-white/60' : 'text-[#A3A3A3]')}>
               {opt.desc}
             </div>
           )}
@@ -175,55 +181,84 @@ function SingleSelectButtons({
   )
 }
 
-function StepHeader({ title, subtitle, optional }: { title: string; subtitle?: string; optional?: boolean }) {
+function StepHeader({ title, subtitle, optional, multi }: { title: string; subtitle?: string; optional?: boolean; multi?: boolean }) {
   return (
     <div className="mb-6">
-      <div className="flex items-center gap-2 mb-1">
-        <h2 className="text-2xl font-bold text-[#0A0A0A]">{title}</h2>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <h2 className="text-[28px] leading-tight font-bold text-[#0A0A0A]">{title}</h2>
         {optional && (
-          <span className="text-xs bg-[#EDE9FE] text-[#7C3AED] px-2.5 py-0.5 rounded-full font-medium">
-            אופציונלי
+          <span className="text-sm bg-[#EDE9FE] text-[#7C3AED] px-3 py-1 rounded-full font-semibold">
+            שדה אופציונלי
           </span>
         )}
       </div>
-      {subtitle && <p className="text-[#737373] text-sm">{subtitle}</p>}
+      {subtitle && <p className="text-[#737373] text-base leading-relaxed">{subtitle}</p>}
+      {multi && (
+        <div className="mt-3 inline-flex items-center gap-1.5 bg-[#FEF3C7] text-[#92400E] text-sm font-semibold px-3 py-1.5 rounded-full">
+          <Check className="w-4 h-4" />
+          אפשר לבחור יותר מאחד 👇
+        </div>
+      )}
     </div>
   )
 }
 
-function RangeSlider({
-  label,
-  value,
+// סליידר טווח עם שתי ידיות עצמאיות — שינוי הגיל המקסימלי לא משפיע על המינימלי (ולהפך)
+function DualRangeSlider({
+  low,
+  high,
   min,
   max,
-  onChange,
+  onLow,
+  onHigh,
   suffix,
 }: {
-  label: string
-  value: number
+  low: number
+  high: number
   min: number
   max: number
-  onChange: (v: number) => void
+  onLow: (v: number) => void
+  onHigh: (v: number) => void
   suffix?: string
 }) {
+  const pct = (v: number) => ((v - min) / (max - min)) * 100
   return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <label className="text-sm font-medium text-[#0A0A0A]">{label}</label>
-        <span className="text-sm font-bold text-[#0A0A0A]">{value}{suffix}</span>
+    <div>
+      <div className="text-center mb-4">
+        <span className="text-3xl font-bold text-[#0A0A0A]">{low}–{high}</span>
+        {suffix && <span className="text-base text-[#A3A3A3] ms-1.5">{suffix}</span>}
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        className="w-full h-2 appearance-none bg-[#E5E5E5] rounded-full cursor-pointer accent-[#0A0A0A]"
-      />
-      <div className="flex justify-between text-xs text-[#A3A3A3]">
-        <span>{min}{suffix}</span>
-        <span>{max}{suffix}</span>
+      <div className="dual-range relative h-10 select-none" dir="ltr">
+        <div className="absolute top-1/2 -translate-y-1/2 inset-x-0 h-2 bg-[#E5E5E5] rounded-full" />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 h-2 bg-[#0A0A0A] rounded-full"
+          style={{ left: `${pct(low)}%`, right: `${100 - pct(high)}%` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={low}
+          onChange={e => onLow(Math.min(Number(e.target.value), high - 1))}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={high}
+          onChange={e => onHigh(Math.max(Number(e.target.value), low + 1))}
+        />
       </div>
+      <div className="flex justify-between text-xs text-[#A3A3A3] mt-2" dir="ltr">
+        <span>{min}</span>
+        <span>{max}+</span>
+      </div>
+      <style>{`
+        .dual-range input[type=range]{position:absolute;top:0;left:0;width:100%;height:100%;margin:0;background:transparent;pointer-events:none;-webkit-appearance:none;appearance:none}
+        .dual-range input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;pointer-events:auto;width:28px;height:28px;border-radius:9999px;background:#0A0A0A;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35);cursor:pointer}
+        .dual-range input[type=range]::-moz-range-thumb{pointer-events:auto;width:28px;height:28px;border-radius:9999px;background:#0A0A0A;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35);cursor:pointer}
+        .dual-range input[type=range]::-moz-range-track{background:transparent;border:none}
+      `}</style>
     </div>
   )
 }
@@ -231,18 +266,24 @@ function RangeSlider({
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
 const STEPS = [
-  'name', 'birth_year', 'gender', 'status', 'children_count', 'height',
-  'relationship_goal', 'children_future',
-  'seeking_partner', 'seeking_range',
+  // ── שאלות חובה (קודם) ──
+  'name', 'birth_year', 'gender', 'status', 'children_count',
+  'relationship_goal', 'children_future', 'seeking_partner',
   'religion', 'location', 'residence_intent',
   'photos', 'languages',
+  'open_required',
+  // ── שאלות רשות (אחר כך) ──
+  'height', 'seeking_range',
   'romantic_vision', 'friday_night', 'saturday_morning', 'hobbies',
-  'open_required', 'open_optional',
+  'open_optional',
 ] as const
 
 type Step = typeof STEPS[number]
 
 const TOTAL = STEPS.length
+
+// ערך-דגל ל"ללא הגבלת מרחק" (עמודת ה-DB היא INTEGER NOT NULL, לכן לא ניתן לשמור null)
+const DISTANCE_NO_LIMIT = 99999
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -250,6 +291,8 @@ export default function SetupProfilePage() {
   const { user, updateProfile } = useAuth()
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // מסך פתיחה (הסבר) לפני תחילת התהליך
+  const [started, setStarted] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   // אינדיקציית התקדמות בעת הסיום (העלאת תמונות + שמירת פרופיל)
@@ -260,12 +303,10 @@ export default function SetupProfilePage() {
     label: string
   }>({ active: false, current: 0, total: 0, label: '' })
 
-  const defaultFirst = user?.profile?.first_name ?? ''
-  const defaultLast = user?.profile?.last_name ?? ''
-
   const [form, setForm] = useState<FormData>({
-    first_name: defaultFirst,
-    last_name: defaultLast,
+    first_name: user?.profile?.first_name ?? '',
+    last_name: user?.profile?.last_name ?? '',
+    phone_number: user?.profile?.phone_number ?? '',
     birth_year: '',
     gender: '',
     marital_status: '',
@@ -278,6 +319,7 @@ export default function SetupProfilePage() {
     age_pref_min: 22,
     age_pref_max: 45,
     distance_pref_km: 50,
+    distance_unlimited: false,
     religion: [],
     city: '',
     latitude: null,
@@ -312,6 +354,22 @@ export default function SetupProfilePage() {
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
     setForm(prev => ({ ...prev, [k]: v }))
 
+  // טעינה אמינה של הפרטים שכבר מולאו בהרשמה (שם + טלפון) ברגע שהפרופיל נטען —
+  // useState רץ פעם אחת, ואם הפרופיל עוד לא היה זמין במאונט השדות היו נשארים ריקים.
+  // ממלאים פעם אחת בלבד ורק אם המשתמש עדיין לא הקליד דבר, כדי לא לדרוס עריכות.
+  const hydratedRef = useRef(false)
+  useEffect(() => {
+    const p = user?.profile
+    if (!p || hydratedRef.current) return
+    hydratedRef.current = true
+    setForm(prev => ({
+      ...prev,
+      first_name: prev.first_name || p.first_name || '',
+      last_name: prev.last_name || p.last_name || '',
+      phone_number: prev.phone_number || p.phone_number || '',
+    }))
+  }, [user?.profile])
+
   // ─── ניסוח לפי מגדר ──────────────────────────────────────────────────────────
   const isFemale = form.gender === 'female'
   // טקסט לפי המגדר של המשתמש/ת (ברירת מחדל: לשון זכר עד הבחירה)
@@ -331,7 +389,7 @@ export default function SetupProfilePage() {
   // Validation per step
   const canProceed = (): boolean => {
     switch (currentStep) {
-      case 'name': return form.first_name.trim().length >= 2 && form.last_name.trim().length >= 2
+      case 'name': return form.first_name.trim().length >= 2 && form.last_name.trim().length >= 2 && form.phone_number.replace(/[^0-9]/g, '').length >= 9
       case 'birth_year': return !!form.birth_year && Number(form.birth_year) >= 1944 && Number(form.birth_year) <= 2006
       case 'gender': return !!form.gender
       case 'status': return !!form.marital_status
@@ -434,6 +492,7 @@ export default function SetupProfilePage() {
       await updateProfile({
         first_name: form.first_name,
         last_name: form.last_name,
+        phone_number: form.phone_number,
         display_name: `${form.first_name} ${form.last_name}`.trim(),
         birth_year: Number(form.birth_year) || null,
         gender: form.gender as 'male' | 'female',
@@ -447,7 +506,7 @@ export default function SetupProfilePage() {
         seeking_with_kids: form.seeking_with_kids as 'yes' | 'no' | 'dont_mind' | '',
         age_pref_min: form.age_pref_min,
         age_pref_max: form.age_pref_max,
-        distance_pref_km: form.distance_pref_km,
+        distance_pref_km: form.distance_unlimited ? DISTANCE_NO_LIMIT : form.distance_pref_km,
         religious_level: mapReligiousLevel(form.religion[0]),
         city: form.city,
         latitude: form.latitude,
@@ -518,6 +577,59 @@ export default function SetupProfilePage() {
   const uploadPct = uploadState.total > 0
     ? Math.round((uploadState.current / uploadState.total) * 100)
     : null
+
+  // ─── מסך פתיחה / הסבר ───────────────────────────────────────────────────────
+  if (!started) {
+    return (
+      <div className="min-h-[100dvh] bg-white flex flex-col px-6 pt-10 pb-8 max-w-lg mx-auto">
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="w-16 h-16 rounded-3xl bg-[#0A0A0A] flex items-center justify-center mb-6">
+            <Heart className="w-8 h-8 text-white" fill="white" />
+          </div>
+
+          <h1 className="text-[32px] leading-tight font-bold text-[#0A0A0A] mb-3">
+            יאללה, בונים לך פרופיל ✨
+          </h1>
+          <p className="text-lg text-[#404040] leading-relaxed mb-2">
+            בדפים הבאים תיצרו את הפרופיל שלכם כפי שאחרים יראו אותו באפליקציה, וגם תמלאו שאלון התאמה קצר שיעזור לכם למצוא התאמות טובות יותר.
+          </p>
+          <p className="text-lg text-[#404040] leading-relaxed mb-2">
+            אין צורך להילחץ — לא כל השאלות הן חובה, אפשר לענות רק על מה שמתחשק ובקצב שנוח לכם.
+          </p>
+          <p className="text-lg text-[#0A0A0A] font-semibold leading-relaxed mb-7">
+            והכי חשוב: תזרמו — לא חקירה של השב״כ 😎
+          </p>
+
+          <div className="space-y-3">
+            {[
+              { icon: Eye, title: 'איך אחרים יראו אותך', desc: 'התמונות והפרטים שיופיעו בכרטיס שלך' },
+              { icon: ClipboardList, title: 'שאלון התאמה קצר', desc: 'כמה שאלות שיעזרו למצוא לך התאמות מדויקות' },
+              { icon: Smile, title: 'בקצב שלך, בלי לחץ', desc: 'אפשר לדלג על שאלות רשות ולהשלים מתי שבא לך' },
+            ].map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="flex items-start gap-3 rounded-2xl border-2 border-[#F0F0F0] p-4">
+                <div className="flex-none w-11 h-11 rounded-2xl bg-[#F5F5F5] flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-[#0A0A0A]" />
+                </div>
+                <div>
+                  <p className="font-bold text-[#0A0A0A] text-base">{title}</p>
+                  <p className="text-sm text-[#737373] leading-snug">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Button
+          onClick={() => setStarted(true)}
+          className="w-full bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-lg font-bold mt-8"
+        >
+          בואו ניצור פרופיל
+          <ArrowLeft className="w-5 h-5 ms-1.5" />
+        </Button>
+        <p className="text-center text-sm text-[#A3A3A3] mt-3">לוקח בערך 3–5 דקות 💛</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -593,12 +705,13 @@ export default function SetupProfilePage() {
           <p className="text-xs text-[#A3A3A3] font-medium">שלב {stepIndex + 1} מתוך {TOTAL}</p>
           <p className="text-xs font-bold text-[#0A0A0A]">מצאתי אותך</p>
         </div>
-        {isOptionalStep && (
-          <button onClick={next} className="text-xs text-[#7C3AED] font-medium hover:underline">
+        {isOptionalStep && stepIndex < TOTAL - 1 ? (
+          <button onClick={next} className="text-sm text-[#7C3AED] font-semibold hover:underline px-1">
             דלג
           </button>
+        ) : (
+          <div className="w-10" />
         )}
-        {!isOptionalStep && <div className="w-10" />}
       </div>
 
       {/* Content */}
@@ -606,26 +719,47 @@ export default function SetupProfilePage() {
         {/* ── Step: Name ── */}
         {currentStep === 'name' && (
           <div>
-            <StepHeader title="נעים להכיר 👋" subtitle="איך קוראים לך?" />
+            <StepHeader title="נעים להכיר 👋" subtitle="אלו הפרטים שמילאת בהרשמה — אפשר לעדכן אותם כאן 👇" />
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0A0A0A]">שם פרטי</label>
+                <label className="text-base font-medium text-[#0A0A0A]">שם פרטי</label>
                 <Input
                   value={form.first_name}
                   onChange={e => set('first_name', e.target.value)}
                   placeholder="ישראל"
-                  className="h-12 rounded-2xl border-[#E5E5E5] text-base"
+                  className="h-14 rounded-2xl border-[#E5E5E5] text-lg"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0A0A0A]">שם משפחה</label>
+                <label className="text-base font-medium text-[#0A0A0A]">שם משפחה</label>
                 <Input
                   value={form.last_name}
                   onChange={e => set('last_name', e.target.value)}
                   placeholder="ישראלי"
-                  className="h-12 rounded-2xl border-[#E5E5E5] text-base"
+                  className="h-14 rounded-2xl border-[#E5E5E5] text-lg"
                 />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-base font-medium text-[#0A0A0A]">מספר טלפון</label>
+                <Input
+                  type="tel"
+                  value={form.phone_number}
+                  onChange={e => set('phone_number', e.target.value)}
+                  placeholder="050-0000000"
+                  dir="ltr"
+                  className="h-14 rounded-2xl border-[#E5E5E5] text-lg text-right"
+                />
+                <p className="text-xs text-[#A3A3A3]">מספר הטלפון עוזר לנו למנוע פרופילים פיקטיביים</p>
+              </div>
+              {user?.email && (
+                <div className="space-y-1.5">
+                  <label className="text-base font-medium text-[#A3A3A3]">אימייל</label>
+                  <div className="h-14 rounded-2xl border-2 border-[#F0F0F0] bg-[#FAFAFA] px-4 flex items-center text-[#A3A3A3] text-lg" dir="ltr">
+                    {user.email}
+                  </div>
+                  <p className="text-xs text-[#A3A3A3]">האימייל מההרשמה — לא ניתן לשינוי כאן</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -647,26 +781,38 @@ export default function SetupProfilePage() {
         {/* ── Step: Gender ── */}
         {currentStep === 'gender' && (
           <div>
-            <StepHeader title="גבר או אישה?" />
-            <div className="grid grid-cols-2 gap-3 mt-2">
+            <StepHeader title="ספר/י לנו עליך" subtitle="מה המגדר שלך?" />
+            <div className="grid grid-cols-2 gap-4 mt-2">
               {[
-                { value: 'male', label: '👨 גבר' },
-                { value: 'female', label: '👩 אישה' },
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => set('gender', opt.value as 'male' | 'female')}
-                  className={cn(
-                    'h-24 rounded-3xl border-2 text-lg font-bold transition-all',
-                    form.gender === opt.value
-                      ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
-                      : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                { value: 'male', emoji: '👨', label: 'גבר' },
+                { value: 'female', emoji: '👩', label: 'אישה' },
+              ].map(opt => {
+                const isSel = form.gender === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => set('gender', opt.value as 'male' | 'female')}
+                    className={cn(
+                      'h-[clamp(190px,38vh,280px)] rounded-[28px] border-2 flex flex-col items-center justify-center gap-4 transition-all active:scale-[0.98]',
+                      isSel
+                        ? 'bg-[#0A0A0A] text-white border-[#0A0A0A] shadow-lg'
+                        : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'w-24 h-24 rounded-full flex items-center justify-center text-6xl transition-colors',
+                        isSel ? 'bg-white/15' : 'bg-[#F5F5F5]'
+                      )}
+                    >
+                      {opt.emoji}
+                    </span>
+                    <span className="text-2xl font-bold">{opt.label}</span>
+                    {isSel && <Check className="w-6 h-6" />}
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
@@ -691,60 +837,39 @@ export default function SetupProfilePage() {
         {currentStep === 'children_count' && (
           <div>
             <StepHeader title="כמה ילדים יש לך?" subtitle={gSelf('גם לרווק יכולים להיות ילדים — והכל בסדר גמור 💛', 'גם לרווקה יכולים להיות ילדים — והכל בסדר גמור 💛')} />
-            <button
-              type="button"
-              onClick={() => set('children_count', '0')}
-              className={cn(
-                'w-full text-right px-4 py-3 rounded-2xl border-2 transition-all font-medium text-sm mb-4',
-                form.children_count === '0'
-                  ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
-                  : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
-              )}
-            >
-              אין לי ילדים
-            </button>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-[#0A0A0A]">או כמה ילדים יש לך?</label>
-              <Input
-                type="number"
-                value={form.children_count === '0' ? '' : form.children_count}
-                onChange={e => set('children_count', e.target.value)}
-                placeholder="לדוגמה: 2"
-                min={1}
-                max={20}
-                className="h-16 rounded-2xl border-[#E5E5E5] text-3xl font-bold text-center"
-                dir="ltr"
-              />
-            </div>
+            <NumberWheel
+              value={form.children_count}
+              min={0}
+              max={15}
+              autoSelect
+              defaultView={0}
+              onChange={v => set('children_count', v)}
+              formatLabel={n => (n === 0 ? 'אין ילדים' : String(n))}
+            />
+            <p className="text-xs text-[#A3A3A3] mt-4 text-center">גלגל/י עד למספר הנכון 👆</p>
           </div>
         )}
 
         {/* ── Step: Height (optional) ── */}
         {currentStep === 'height' && (
           <div>
-            <StepHeader title="מה הגובה שלך?" optional />
-            <div className="space-y-2">
-              <Input
-                type="number"
-                value={form.height_cm}
-                onChange={e => set('height_cm', e.target.value)}
-                placeholder="175"
-                min={140}
-                max={220}
-                className="h-16 rounded-2xl border-[#E5E5E5] text-3xl font-bold text-center"
-                dir="ltr"
-              />
-              <p className="text-center text-[#A3A3A3] text-sm">ס"מ</p>
-            </div>
+            <StepHeader title="מה הגובה שלך?" optional subtitle="גלגל/י עד לגובה שלך, או דלג/י" />
+            <NumberWheel
+              value={form.height_cm}
+              min={140}
+              max={220}
+              defaultView={172}
+              onChange={v => set('height_cm', v)}
+              formatLabel={n => `${n} ס״מ`}
+            />
           </div>
         )}
 
         {/* ── Step: Relationship Goal ── */}
         {currentStep === 'relationship_goal' && (
           <div>
-            <StepHeader title={gSelf('מה אני מחפש?', 'מה אני מחפשת?')} subtitle="אפשר לבחור יותר מאחד" />
+            <StepHeader title={gSelf('מה אני מחפש?', 'מה אני מחפשת?')} subtitle="מה הכי מדבר אליך כרגע?" multi />
             <MultiSelectButtons
-              fullWidth
               options={[
                 { value: 'marriage', label: '💍 חתונה וחמין בשבת' },
                 { value: 'serious_easy', label: '☕ קשר רציני בקצב רגוע וקליל' },
@@ -781,7 +906,7 @@ export default function SetupProfilePage() {
         {/* ── Step: Seeking Partner ── */}
         {currentStep === 'seeking_partner' && (
           <div>
-            <StepHeader title={gPartner('האחת שלי', 'האחד שלי')} subtitle="מה הסטטוס המועדף? (אפשר כמה)" />
+            <StepHeader title={gPartner('האחת שלי', 'האחד שלי')} subtitle="מה הסטטוס המועדף עליך?" multi />
             <MultiSelectButtons
               options={[
                 { value: 'single', label: gPartner('רווקה', 'רווק') },
@@ -809,34 +934,58 @@ export default function SetupProfilePage() {
         {/* ── Step: Seeking Range (optional) ── */}
         {currentStep === 'seeking_range' && (
           <div>
-            <StepHeader title="טווח העדפות" optional />
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <RangeSlider
-                  label={`גיל מינימלי`}
-                  value={form.age_pref_min}
+            <StepHeader title="טווח העדפות" optional subtitle="באיזה טווח גילאים ומרחק לחפש לך התאמות?" />
+            <div className="space-y-10">
+              <div>
+                <label className="text-base font-medium text-[#0A0A0A] mb-3 block">טווח גילאים</label>
+                <DualRangeSlider
+                  low={form.age_pref_min}
+                  high={form.age_pref_max}
                   min={18}
-                  max={form.age_pref_max - 1}
-                  onChange={v => set('age_pref_min', v)}
-                  suffix=" שנה"
-                />
-                <RangeSlider
-                  label={`גיל מקסימלי`}
-                  value={form.age_pref_max}
-                  min={form.age_pref_min + 1}
                   max={80}
-                  onChange={v => set('age_pref_max', v)}
-                  suffix=" שנה"
+                  onLow={v => set('age_pref_min', v)}
+                  onHigh={v => set('age_pref_max', v)}
+                  suffix="שנים"
                 />
               </div>
-              <RangeSlider
-                label="מרחק מקסימלי ממני"
-                value={form.distance_pref_km}
-                min={5}
-                max={500}
-                onChange={v => set('distance_pref_km', v)}
-                suffix=" ק״מ"
-              />
+
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-base font-medium text-[#0A0A0A]">מרחק מקסימלי ממני</label>
+                  <span className="text-base font-bold text-[#0A0A0A]">
+                    {form.distance_unlimited ? '🌍 ללא הגבלה' : `${form.distance_pref_km} ק״מ`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={500}
+                  value={form.distance_pref_km}
+                  disabled={form.distance_unlimited}
+                  onChange={e => set('distance_pref_km', Number(e.target.value))}
+                  className={cn(
+                    'w-full h-2 appearance-none bg-[#E5E5E5] rounded-full accent-[#0A0A0A]',
+                    form.distance_unlimited ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                  )}
+                />
+                <div className="flex justify-between text-xs text-[#A3A3A3] mt-2">
+                  <span>5 ק״מ</span>
+                  <span>500 ק״מ</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('distance_unlimited', !form.distance_unlimited)}
+                  className={cn(
+                    'w-full mt-4 px-4 py-3.5 rounded-2xl border-2 text-base font-medium transition-all flex items-center justify-center gap-2',
+                    form.distance_unlimited
+                      ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
+                      : 'border-[#E5E5E5] text-[#0A0A0A] hover:border-[#0A0A0A]'
+                  )}
+                >
+                  {form.distance_unlimited && <Check className="w-4 h-4" />}
+                  🌍 חפש בכל העולם — בלי הגבלת מרחק
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1046,10 +1195,11 @@ export default function SetupProfilePage() {
             <StepHeader title="מה התחביבים שלך?" optional subtitle={gSelf('בחר מהרשימה ו/או כתוב בעצמך', 'בחרי מהרשימה ו/או כתבי בעצמך')} />
             <MultiSelectButtons
               options={[
+                { value: 'cooking', label: gSelf('👨‍🍳 בשלן תותח — עונה הבאה אני במאסטר שף', '👩‍🍳 בשלנית תותחית — עונה הבאה אני במאסטר שף') },
+                { value: 'travel', label: '✈️ טיולים בטבע בארץ ונסיעות וחו״ל' },
                 { value: 'soccer', label: '⚽ כדורגל ישראלי/אירופאי' },
                 { value: 'sport', label: '🏃 ספורט / כושר / ריצה' },
                 { value: 'torah', label: '📜 שיעורי תורה' },
-                { value: 'cooking', label: gSelf('👨‍🍳 בשלן תותח — עונה הבאה אני במאסטר שף', '👩‍🍳 בשלנית תותחית — עונה הבאה אני במאסטר שף') },
                 { value: 'nightlife', label: '🍽️ מסעדות, ברים ויציאות בעיר' },
                 { value: 'series', label: '📺 צפייה בסדרות / סרטים' },
                 { value: 'music', label: '🎵 מוזיקה (לשמוע / לנגן / הופעות)' },
@@ -1058,7 +1208,6 @@ export default function SetupProfilePage() {
                 { value: 'art', label: '🎨 אמנות / צילום / יצירה' },
                 { value: 'meditation', label: '🧘 מדיטציה / יוגה / מיינדפולנס' },
                 { value: 'bbq', label: '🔥 על האש עם חברים ומשפחה' },
-                { value: 'travel', label: '✈️ טיולים בטבע בארץ ונסיעות וחו״ל' },
                 { value: 'chill', label: '🌊 אין לי תחביב מוגדר — זורם עם החיים' },
                 { value: 'politics', label: '🗞️ פוליטיקה, אקטואליה ולייעץ לטראמפ מה צריך לעשות…' },
               ]}
@@ -1070,12 +1219,12 @@ export default function SetupProfilePage() {
               }}
             />
             <div className="mt-4 space-y-1.5">
-              <label className="text-sm font-medium text-[#0A0A0A]">{gSelf('משהו אחר לגמרי? כתוב ✍️', 'משהו אחר לגמרי? כתבי ✍️')}</label>
+              <label className="text-base font-medium text-[#0A0A0A]">{gSelf('משהו אחר לגמרי? כתוב ✍️', 'משהו אחר לגמרי? כתבי ✍️')}</label>
               <Input
                 value={form.hobby_custom}
                 onChange={e => set('hobby_custom', e.target.value)}
                 placeholder="תחביב שלא ברשימה..."
-                className="h-11 rounded-xl border-[#E5E5E5]"
+                className="h-12 rounded-xl border-[#E5E5E5] text-base"
               />
             </div>
           </div>
@@ -1087,23 +1236,23 @@ export default function SetupProfilePage() {
             <StepHeader title="קצת עליך" subtitle={gSelf('שאלות חובה — אל תפחד להיות אתה', 'שאלות חובה — אל תפחדי להיות את')} />
             <div className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-[#0A0A0A]">{gSelf('ספר על עצמך... *', 'ספרי על עצמך... *')}</label>
+                <label className="text-base font-bold text-[#0A0A0A]">{gSelf('ספר על עצמך... *', 'ספרי על עצמך... *')}</label>
                 <Textarea
                   value={form.open_bio}
                   onChange={e => set('open_bio', e.target.value)}
                   placeholder={gSelf('מי אתה, מה אתה אוהב, מה מניע אותך...', 'מי את, מה את אוהבת, מה מניע אותך...')}
-                  className="min-h-32 rounded-2xl border-[#E5E5E5] resize-none"
+                  className="min-h-32 rounded-2xl border-[#E5E5E5] resize-none text-base"
                   maxLength={600}
                 />
                 <p className="text-xs text-[#A3A3A3] text-end">{form.open_bio.length}/600</p>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-[#0A0A0A]">{gSelf('מה אתה מחפש בזוגיות? *', 'מה את מחפשת בזוגיות? *')}</label>
+                <label className="text-base font-bold text-[#0A0A0A]">{gSelf('מה אתה מחפש בזוגיות? *', 'מה את מחפשת בזוגיות? *')}</label>
                 <Textarea
                   value={form.open_seeking}
                   onChange={e => set('open_seeking', e.target.value)}
                   placeholder={gPartner('בת זוג אידיאלית בעיניי...', 'בן זוג אידיאלי בעיניי...')}
-                  className="min-h-28 rounded-2xl border-[#E5E5E5] resize-none"
+                  className="min-h-28 rounded-2xl border-[#E5E5E5] resize-none text-base"
                   maxLength={400}
                 />
                 <p className="text-xs text-[#A3A3A3] text-end">{form.open_seeking.length}/400</p>
@@ -1135,12 +1284,12 @@ export default function SetupProfilePage() {
                 { key: 'open_food' as const, label: gSelf('מה האוכל שאתה יכול לאכול כל יום?', 'מה האוכל שאת יכולה לאכול כל יום?'), ph: gSelf('אוכל שאתה ממש אוהב...', 'אוכל שאת ממש אוהבת...') },
               ].map(({ key, label, ph }) => (
                 <div key={key} className="space-y-1.5">
-                  <label className="text-sm font-medium text-[#0A0A0A]">{label}</label>
+                  <label className="text-base font-medium text-[#0A0A0A]">{label}</label>
                   <Textarea
                     value={form[key]}
                     onChange={e => set(key, e.target.value)}
                     placeholder={ph}
-                    className="min-h-20 rounded-2xl border-[#E5E5E5] resize-none text-sm"
+                    className="min-h-20 rounded-2xl border-[#E5E5E5] resize-none text-base"
                     maxLength={300}
                   />
                 </div>
@@ -1151,30 +1300,40 @@ export default function SetupProfilePage() {
       </div>
 
       {/* Bottom navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#E5E5E5] p-4">
-        <div className="max-w-lg mx-auto flex gap-3">
-          {stepIndex > 0 && (
-            <Button
-              variant="outline"
-              onClick={back}
-              className="flex-none border-[#E5E5E5] rounded-2xl px-5 h-12"
-            >
-              <ArrowRight className="w-4 h-4 me-1" />
-              חזור
-            </Button>
-          )}
-          <Button
-            onClick={next}
-            disabled={!canProceed() || isSaving}
-            className="flex-1 bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-12 font-bold disabled:opacity-40"
-          >
-            {isSaving ? (form.photos.length > 0 ? 'מעלה תמונות...' : 'שומר...') : stepIndex === TOTAL - 1 ? '🎉 סיום ההרשמה' : (
-              <>
-                המשך
-                <ArrowLeft className="w-4 h-4 ms-1" />
-              </>
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#E5E5E5] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="max-w-lg mx-auto">
+          <div className="flex gap-3">
+            {stepIndex > 0 && (
+              <Button
+                variant="outline"
+                onClick={back}
+                className="flex-none border-[#E5E5E5] rounded-2xl px-5 h-14 text-base"
+              >
+                <ArrowRight className="w-4 h-4 me-1" />
+                חזור
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={next}
+              disabled={!canProceed() || isSaving}
+              className="flex-1 bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-base font-bold disabled:opacity-40"
+            >
+              {isSaving ? (form.photos.length > 0 ? 'מעלה תמונות...' : 'שומר...') : stepIndex === TOTAL - 1 ? '🎉 סיום ההרשמה' : (
+                <>
+                  המשך
+                  <ArrowLeft className="w-4 h-4 ms-1" />
+                </>
+              )}
+            </Button>
+          </div>
+          {isOptionalStep && stepIndex < TOTAL - 1 && (
+            <button
+              onClick={next}
+              className="w-full mt-2.5 text-center text-sm text-[#7C3AED] font-semibold py-1.5 hover:underline"
+            >
+              אפשר לדלג על השלב הזה ←
+            </button>
+          )}
         </div>
       </div>
     </div>

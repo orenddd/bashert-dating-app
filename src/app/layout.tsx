@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Heebo, Frank_Ruhl_Libre } from 'next/font/google'
 import './globals.css'
 import { LanguageProvider } from '@/components/shared/LanguageProvider'
@@ -27,6 +27,15 @@ export const metadata: Metadata = {
     shortcut: '/favicon.svg',
     apple: '/favicon.svg',
   },
+}
+
+// resizes-content מבטיח שכאשר מקלדת הטלפון נפתחת, ה-viewport מתכווץ
+// וכך אלמנטים עם position:fixed bottom-0 (כמו כפתור ה"המשך") נשארים מעל המקלדת
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  interactiveWidget: 'resizes-content',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
