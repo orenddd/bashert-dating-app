@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart, Loader2, RotateCcw, PartyPopper } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { YearWheel } from '@/components/shared/YearWheel'
@@ -38,7 +38,6 @@ interface FormData {
   latitude: number | null
   longitude: number | null
   residence_intent: string[]
-  photos: File[]
   languages: string[]
   romantic_vision: string[]
   friday_night: string[]
@@ -63,6 +62,23 @@ interface FormData {
   open_childish: string
   open_food: string
 }
+
+// פריט מדיה בפרופיל — ההעלאה ל-Storage מתחילה ברקע מיד עם הבחירה,
+// כך שלחיצה על "צור פרופיל" לא צריכה להמתין להעלאות
+interface PhotoItem {
+  id: string
+  previewUrl: string
+  status: 'uploading' | 'done' | 'error'
+  url?: string
+  path?: string
+  mediaType: 'image' | 'video' | 'audio'
+  file?: File // נשמר בזיכרון בלבד לצורך ניסיון חוזר — לא נכנס לטיוטה
+}
+
+// טיוטת התקדמות ב-localStorage — כל מה שהוזן נשמר גם בלי ליצור פרופיל,
+// ובכניסה הבאה ממשיכים מאותו שלב בדיוק
+const DRAFT_VERSION = 1
+const draftKey = (userId: string) => `setup-profile-draft:v${DRAFT_VERSION}:${userId}`
 
 // מיפוי בחירת הדתיות (כולל ערכים "עשירים") לערך תקין בעמודת enum של ה-DB
 function mapReligiousLevel(value?: string): 'hiloni' | 'masorti' | 'dati_light' | 'dati' | 'haredi' {
@@ -187,8 +203,8 @@ function StepHeader({ title, subtitle, optional, multi }: { title: string; subti
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <h2 className="text-[28px] leading-tight font-bold text-[#0A0A0A]">{title}</h2>
         {optional && (
-          <span className="text-sm bg-[#EDE9FE] text-[#7C3AED] px-3 py-1 rounded-full font-semibold">
-            שדה אופציונלי
+          <span className="text-sm bg-[#EDE9FE] text-[#7C3AED] px-3 py-1 rounded-full font-bold border border-[#DDD6FE]">
+            💜 רשות בלבד — אפשר לדלג
           </span>
         )}
       </div>
@@ -272,6 +288,8 @@ const STEPS = [
   'religion', 'location', 'residence_intent',
   'photos', 'languages',
   'open_required',
+  // ── מסך מעבר: סוף החובה — אפשר ליצור פרופיל כבר עכשיו ──
+  'optional_intro',
   // ── שאלות רשות (אחר כך) ──
   'height', 'seeking_range',
   'romantic_vision', 'friday_night', 'saturday_morning', 'hobbies',
@@ -295,6 +313,14 @@ export default function SetupProfilePage() {
   const [started, setStarted] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
+  // האם שוחזרה טיוטה שמורה — משנה את מסך הפתיחה ל"ממשיכים מאיפה שעצרת"
+  const [hasDraft, setHasDraft] = useState(false)
+  // המדיה מנוהלת בנפרד מהטופס: File לא ניתן לשמירה בטיוטה, וההעלאה רצה ברקע
+  const [photos, setPhotos] = useState<PhotoItem[]>([])
+  // הבטחות העלאה שעדיין רצות — "צור פרופיל" ממתין רק למי שטרם הסתיימה
+  const uploadTasksRef = useRef<Map<string, Promise<void>>>(new Map())
+  // תוצאות העלאה לפי id, מתעדכן סינכרונית (state עלול לפגר אחרי await)
+  const uploadedMetaRef = useRef<Map<string, { url: string; path: string; mediaType: PhotoItem['mediaType'] }>>(new Map())
   // אינדיקציית התקדמות בעת הסיום (העלאת תמונות + שמירת פרופיל)
   const [uploadState, setUploadState] = useState<{
     active: boolean
@@ -325,7 +351,6 @@ export default function SetupProfilePage() {
     latitude: null,
     longitude: null,
     residence_intent: [],
-    photos: [],
     languages: [],
     romantic_vision: [],
     friday_night: [],
@@ -370,6 +395,71 @@ export default function SetupProfilePage() {
     }))
   }, [user?.profile])
 
+  // ─── טיוטה: שחזור בכניסה ───────────────────────────────────────────────────
+  // כל מה שהוזן נשמר גם אם הפרופיל לא נוצר — בכניסה הבאה ממשיכים מאותו שלב.
+  // השחזור סינכרוני במכוון (חד-פעמי, מאחורי מסך הפתיחה) כדי שלא יהיה מרוץ מול המשתמש
+  /* eslint-disable react-hooks/set-state-in-effect */
+  const draftLoadedRef = useRef(false)
+  useEffect(() => {
+    if (!user?.id || draftLoadedRef.current) return
+    draftLoadedRef.current = true
+    try {
+      const raw = localStorage.getItem(draftKey(user.id))
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (!draft || typeof draft !== 'object') return
+      if (draft.form && typeof draft.form === 'object') {
+        setForm(prev => ({ ...prev, ...draft.form }))
+      }
+      if (Array.isArray(draft.photos)) {
+        const restored: PhotoItem[] = draft.photos
+          .filter((p: Partial<PhotoItem>) => p && typeof p.url === 'string' && typeof p.path === 'string')
+          .map((p: PhotoItem) => ({
+            id: p.id || p.path!,
+            previewUrl: p.url!,
+            status: 'done' as const,
+            url: p.url,
+            path: p.path,
+            mediaType: p.mediaType ?? 'image',
+          }))
+        restored.forEach(p => uploadedMetaRef.current.set(p.id, { url: p.url!, path: p.path!, mediaType: p.mediaType }))
+        setPhotos(restored)
+      }
+      if (typeof draft.stepIndex === 'number') {
+        setStepIndex(Math.min(Math.max(Math.floor(draft.stepIndex), 0), TOTAL - 1))
+      }
+      setHasDraft(true)
+    } catch {
+      // טיוטה פגומה — מתעלמים וממשיכים כרגיל
+    }
+  }, [user?.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // ─── טיוטה: שמירה אוטומטית בכל שינוי ───────────────────────────────────────
+  useEffect(() => {
+    if (!user?.id || !started) return
+    const t = setTimeout(() => {
+      try {
+        const donePhotos = photos
+          .filter(p => p.status === 'done' && p.url && p.path)
+          .map(({ id, url, path, mediaType }) => ({ id, url, path, mediaType }))
+        localStorage.setItem(
+          draftKey(user.id),
+          JSON.stringify({ form, photos: donePhotos, stepIndex, savedAt: new Date().toISOString() })
+        )
+      } catch {
+        // localStorage חסום/מלא — לא חוסמים את המשתמש בגלל הטיוטה
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [form, photos, stepIndex, started, user?.id])
+
+  // "התחל מחדש" ממסך הפתיחה — מוחק את הטיוטה ומאפס את התהליך
+  const resetDraft = () => {
+    if (user?.id) localStorage.removeItem(draftKey(user.id))
+    window.location.reload()
+  }
+
   // ─── ניסוח לפי מגדר ──────────────────────────────────────────────────────────
   const isFemale = form.gender === 'female'
   // טקסט לפי המגדר של המשתמש/ת (ברירת מחדל: לשון זכר עד הבחירה)
@@ -402,8 +492,9 @@ export default function SetupProfilePage() {
       case 'religion': return form.religion.length > 0
       case 'location': return form.city.trim().length > 0
       case 'residence_intent': return form.residence_intent.length > 0
-      case 'photos': return form.photos.length >= 3
+      case 'photos': return photos.length >= 3
       case 'languages': return form.languages.length > 0
+      case 'optional_intro': return true
       case 'romantic_vision': return true
       case 'friday_night': return true
       case 'saturday_morning': return true
@@ -416,60 +507,73 @@ export default function SetupProfilePage() {
 
   const isOptionalStep = ['height', 'seeking_range', 'romantic_vision', 'friday_night', 'saturday_morning', 'hobbies', 'open_optional'].includes(currentStep)
 
+  // ─── העלאת מדיה ברקע ─────────────────────────────────────────────────────────
+  // ההעלאה מתחילה מיד עם בחירת הקבצים — בלחיצה על "צור פרופיל" לא ממתינים לה
+  const uploadItem = (item: PhotoItem, file: File) => {
+    const userId = user?.id
+    if (!userId) return
+    const run = (async () => {
+      try {
+        const supabase = createClient()
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+        const { data: uploaded, error } = await supabase.storage
+          .from('profile-photos')
+          .upload(path, file, { upsert: true })
+        if (error) throw error
+        const { data: { publicUrl } } = supabase.storage
+          .from('profile-photos')
+          .getPublicUrl(uploaded.path)
+        uploadedMetaRef.current.set(item.id, { url: publicUrl, path: uploaded.path, mediaType: item.mediaType })
+        setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'done', url: publicUrl, path: uploaded.path } : p))
+      } catch (err) {
+        console.error('upload error:', err)
+        setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'error' } : p))
+      } finally {
+        uploadTasksRef.current.delete(item.id)
+      }
+    })()
+    uploadTasksRef.current.set(item.id, run)
+  }
+
+  const retryUpload = (item: PhotoItem) => {
+    if (!item.file) return
+    setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'uploading' } : p))
+    uploadItem(item, item.file)
+  }
+
   const finish = async () => {
     setIsSaving(true)
+    const pendingUploads = uploadTasksRef.current.size
     setUploadState({
       active: true,
       current: 0,
-      total: form.photos.length,
-      label: form.photos.length > 0 ? 'מתחילים בהעלאת התמונות...' : 'שומרים את הפרופיל...',
+      total: 0,
+      label: pendingUploads > 0 ? 'מסיימים את העלאת הקבצים שרצה ברקע...' : 'שומרים את הפרופיל...',
     })
     try {
-      // ─── העלאת תמונות ל-Supabase Storage ─────────────────────────────────
-      if (user?.id && form.photos.length > 0) {
-        const supabase = createClient()
-        const toInsert: {
-          user_id: string; url: string; is_primary: boolean;
-          order_index: number; media_type: string;
-        }[] = []
+      // ─── התמונות כבר הועלו ברקע — ממתינים רק להעלאות שטרם הסתיימו ─────────
+      if (pendingUploads > 0) {
+        await Promise.allSettled([...uploadTasksRef.current.values()])
+      }
 
-        for (let i = 0; i < form.photos.length; i++) {
-          const file = form.photos[i]
-          const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-          const path = `${user.id}/${Date.now()}-${i}.${ext}`
-          const mediaType = file.type.startsWith('video') ? 'video'
-            : file.type.startsWith('audio') ? 'audio' : 'image'
-
-          setUploadState({
-            active: true,
-            current: i,
-            total: form.photos.length,
-            label: `מעלה ${mediaType === 'video' ? 'סרטון' : mediaType === 'audio' ? 'הקלטה' : 'תמונה'} ${i + 1} מתוך ${form.photos.length}...`,
-          })
-
-          const { data: uploaded, error: uploadErr } = await supabase.storage
-            .from('profile-photos')
-            .upload(path, file, { upsert: true })
-
-          if (uploadErr) {
-            console.error('upload error:', uploadErr)
-            continue
-          }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('profile-photos')
-            .getPublicUrl(uploaded.path)
-
-          toInsert.push({
-            user_id: user.id,
-            url: publicUrl,
-            is_primary: i === 0,
-            order_index: i,
-            media_type: mediaType,
-          })
-        }
+      if (user?.id) {
+        // סדר התמונות לפי המסך; ה-URL מגיע מהמפה שמתעדכנת סינכרונית בסיום כל העלאה
+        const readyMetas = photos
+          .map(p => (p.url && p.path
+            ? { url: p.url, mediaType: p.mediaType }
+            : uploadedMetaRef.current.get(p.id)))
+          .filter((m): m is NonNullable<typeof m> => Boolean(m))
+        const toInsert = readyMetas.map((meta, i) => ({
+          user_id: user.id,
+          url: meta.url,
+          is_primary: i === 0,
+          order_index: i,
+          media_type: meta.mediaType,
+        }))
 
         if (toInsert.length > 0) {
+          const supabase = createClient()
           // מחק תמונות ישנות והכנס חדשות
           await supabase.from('photos').delete().eq('user_id', user.id)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -481,8 +585,8 @@ export default function SetupProfilePage() {
       // ─── עדכון פרופיל ────────────────────────────────────────────────────
       setUploadState({
         active: true,
-        current: form.photos.length,
-        total: form.photos.length,
+        current: 0,
+        total: 0,
         label: 'כמעט שם — שומרים את הפרופיל שלך... 💛',
       })
       const hobbiesArr = [
@@ -539,9 +643,11 @@ export default function SetupProfilePage() {
         bio: form.open_bio,
         profile_complete: true,
       })
+      // הפרופיל נוצר — הטיוטה כבר לא נחוצה
+      if (user?.id) localStorage.removeItem(draftKey(user.id))
       toast.success('הפרופיל שלך מוכן! 🎉')
       // Full reload so AuthProvider re-fetches profile_complete from DB
-      window.location.href = '/home'
+      window.location.assign('/home')
     } catch (err) {
       console.error('finish error:', err)
       toast.error('שגיאה בשמירת הפרופיל. נסה שנית.')
@@ -562,15 +668,31 @@ export default function SetupProfilePage() {
 
   const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return
-    const newFiles = Array.from(e.target.files)
-    setForm(prev => ({
-      ...prev,
-      photos: [...prev.photos, ...newFiles].slice(0, 10),
+    const files = Array.from(e.target.files)
+    e.target.value = '' // מאפשר לבחור שוב את אותו קובץ אחרי הסרה
+    const room = Math.max(0, 10 - photos.length)
+    const newItems: (PhotoItem & { file: File })[] = files.slice(0, room).map(file => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      previewUrl: URL.createObjectURL(file),
+      status: 'uploading' as const,
+      mediaType: file.type.startsWith('video') ? 'video' as const
+        : file.type.startsWith('audio') ? 'audio' as const : 'image' as const,
+      file,
     }))
+    setPhotos(prev => [...prev, ...newItems])
+    // ההעלאה יוצאת לדרך מיד — עד הלחיצה על "צור פרופיל" היא כבר תסתיים
+    newItems.forEach(item => uploadItem(item, item.file))
   }
 
-  const removePhoto = (i: number) => {
-    setForm(prev => ({ ...prev, photos: prev.photos.filter((_, idx) => idx !== i) }))
+  const removePhoto = (id: string) => {
+    const item = photos.find(p => p.id === id)
+    setPhotos(prev => prev.filter(p => p.id !== id))
+    uploadedMetaRef.current.delete(id)
+    if (item?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
+    if (item?.path) {
+      // ניקוי הקובץ שכבר הועלה — best effort, לא חוסם את המשתמש
+      void createClient().storage.from('profile-photos').remove([item.path])
+    }
   }
 
   // אחוז ההתקדמות בהעלאה (אם אין תמונות — מצב אינדטרמיננטי)
@@ -588,8 +710,13 @@ export default function SetupProfilePage() {
           </div>
 
           <h1 className="text-[32px] leading-tight font-bold text-[#0A0A0A] mb-3">
-            יאללה, בונים לך פרופיל ✨
+            {hasDraft ? 'ממשיכים מאיפה שעצרת 👋' : 'יאללה, בונים לך פרופיל ✨'}
           </h1>
+          {hasDraft && (
+            <p className="text-lg text-[#404040] leading-relaxed mb-2">
+              שמרנו את כל מה שכבר מילאת — אפשר להמשיך בדיוק מאותו שלב, בלי למלא שום דבר מחדש 💛
+            </p>
+          )}
           <p className="text-lg text-[#404040] leading-relaxed mb-2">
             בדפים הבאים תיצרו את הפרופיל שלכם כפי שאחרים יראו אותו באפליקציה, וגם תמלאו שאלון התאמה קצר שיעזור לכם למצוא התאמות טובות יותר.
           </p>
@@ -623,10 +750,20 @@ export default function SetupProfilePage() {
           onClick={() => setStarted(true)}
           className="w-full bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-lg font-bold mt-8"
         >
-          בואו ניצור פרופיל
+          {hasDraft ? `המשך מאיפה שעצרת — שלב ${stepIndex + 1} מתוך ${TOTAL}` : 'בואו ניצור פרופיל'}
           <ArrowLeft className="w-5 h-5 ms-1.5" />
         </Button>
-        <p className="text-center text-sm text-[#A3A3A3] mt-3">לוקח בערך 3–5 דקות 💛</p>
+        {hasDraft ? (
+          <button
+            onClick={resetDraft}
+            className="w-full text-center text-sm text-[#A3A3A3] font-medium mt-3 py-1 hover:text-[#0A0A0A] transition-colors inline-flex items-center justify-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            למחוק את מה שמילאתי ולהתחיל מחדש
+          </button>
+        ) : (
+          <p className="text-center text-sm text-[#A3A3A3] mt-3">לוקח בערך 3–5 דקות 💛</p>
+        )}
       </div>
     )
   }
@@ -703,7 +840,11 @@ export default function SetupProfilePage() {
         </button>
         <div className="text-center">
           <p className="text-xs text-[#A3A3A3] font-medium">שלב {stepIndex + 1} מתוך {TOTAL}</p>
-          <p className="text-xs font-bold text-[#0A0A0A]">מצאתי אותך</p>
+          {isOptionalStep ? (
+            <p className="text-xs font-bold text-[#7C3AED]">שאלת רשות — לא חובה לענות 💜</p>
+          ) : (
+            <p className="text-xs font-bold text-[#0A0A0A]">מצאתי אותך</p>
+          )}
         </div>
         {isOptionalStep && stepIndex < TOTAL - 1 ? (
           <button onClick={next} className="text-sm text-[#7C3AED] font-semibold hover:underline px-1">
@@ -1050,15 +1191,30 @@ export default function SetupProfilePage() {
             <StepHeader title="תמונות ומדיה" subtitle="חובה לפחות 3, עד 10 קבצים (תמונות, סרטון, שמע)" />
 
             <div className="grid grid-cols-3 gap-2 mb-4">
-              {form.photos.map((file, i) => (
-                <div key={i} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-[#E5E5E5]">
+              {photos.map((item, i) => (
+                <div key={item.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-[#E5E5E5]">
                   <img
-                    src={URL.createObjectURL(file)}
+                    src={item.previewUrl}
                     alt=""
                     className="w-full h-full object-cover"
                   />
+                  {/* ההעלאה רצה ברקע — חיווי עדין בלי לחסום את ההמשך */}
+                  {item.status === 'uploading' && (
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+                    </div>
+                  )}
+                  {item.status === 'error' && (
+                    <button
+                      onClick={() => retryUpload(item)}
+                      className="absolute inset-0 bg-red-600/70 flex flex-col items-center justify-center gap-1 text-white"
+                    >
+                      <RotateCcw className="w-5 h-5" />
+                      <span className="text-[11px] font-semibold">ההעלאה נכשלה — נסה שוב</span>
+                    </button>
+                  )}
                   <button
-                    onClick={() => removePhoto(i)}
+                    onClick={() => removePhoto(item.id)}
                     className="absolute top-1 end-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
                   >
                     <X className="w-3 h-3" />
@@ -1071,13 +1227,13 @@ export default function SetupProfilePage() {
                 </div>
               ))}
 
-              {form.photos.length < 10 && (
+              {photos.length < 10 && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
                     'aspect-[3/4] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors',
-                    form.photos.length < 3
+                    photos.length < 3
                       ? 'border-[#0A0A0A] bg-gray-50'
                       : 'border-[#E5E5E5] hover:border-[#0A0A0A]'
                   )}
@@ -1097,14 +1253,24 @@ export default function SetupProfilePage() {
               onChange={handlePhotos}
             />
 
-            <div className="bg-[#F5F5F5] rounded-2xl p-3 text-center">
+            <div className="bg-[#F5F5F5] rounded-2xl p-3 text-center space-y-1">
               <p className="text-sm text-[#737373]">
-                {form.photos.length}/10 קבצים •{' '}
-                {form.photos.length < 3
-                  ? <span className="text-red-500 font-medium">נדרשות לפחות {3 - form.photos.length} תמונות נוספות</span>
+                {photos.length}/10 קבצים •{' '}
+                {photos.length < 3
+                  ? <span className="text-red-500 font-medium">נדרשות לפחות {3 - photos.length} תמונות נוספות</span>
                   : <span className="text-green-600 font-medium">✓ מינימום הושג</span>
                 }
               </p>
+              {photos.some(p => p.status === 'uploading') && (
+                <p className="text-xs text-[#7C3AED] font-medium">
+                  ⏳ הקבצים עולים ברקע — אפשר להמשיך לשאלות הבאות בינתיים
+                </p>
+              )}
+              {photos.some(p => p.status === 'error') && (
+                <p className="text-xs text-red-500 font-medium">
+                  חלק מהקבצים לא הועלו — לחצו עליהם לניסיון חוזר
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -1261,6 +1427,33 @@ export default function SetupProfilePage() {
           </div>
         )}
 
+        {/* ── Step: Optional Intro — סוף שאלות החובה ── */}
+        {currentStep === 'optional_intro' && (
+          <div className="pt-4">
+            <div className="w-16 h-16 rounded-3xl bg-[#0A0A0A] flex items-center justify-center mb-6">
+              <PartyPopper className="w-8 h-8 text-[#FFD24A]" />
+            </div>
+            <h2 className="text-[28px] leading-tight font-bold text-[#0A0A0A] mb-3">
+              זהו! סיימת את כל שאלות החובה 🎉
+            </h2>
+            <p className="text-lg text-[#404040] leading-relaxed mb-2">
+              יש לך את כל מה שצריך — אפשר ליצור את הפרופיל <b>עכשיו</b> ולצאת לדרך.
+            </p>
+            <p className="text-lg text-[#404040] leading-relaxed mb-6">
+              מכאן והלאה כל השאלות הן <span className="font-bold text-[#7C3AED]">רשות בלבד</span>: הן עוזרות לנו לדייק את ההתאמות שלך, אבל אין שום חובה לענות עליהן — ואפשר גם להשלים אותן בכל זמן אחר דרך עריכת הפרופיל.
+            </p>
+            <div className="rounded-2xl border-2 border-[#EDE9FE] bg-[#FAF8FF] p-4 flex items-start gap-3">
+              <div className="flex-none w-11 h-11 rounded-2xl bg-[#EDE9FE] flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-[#7C3AED]" />
+              </div>
+              <div>
+                <p className="font-bold text-[#0A0A0A] text-base">עוד 2 דקות = התאמות מדויקות יותר</p>
+                <p className="text-sm text-[#737373] leading-snug">כמה שאלות קלילות על סגנון החיים שלך — עונים רק על מה שמתחשק, ומדלגים על השאר</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Step: Open Optional ── */}
         {currentStep === 'open_optional' && (
           <div>
@@ -1302,37 +1495,62 @@ export default function SetupProfilePage() {
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#E5E5E5] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="max-w-lg mx-auto">
-          <div className="flex gap-3">
-            {stepIndex > 0 && (
+          {currentStep === 'optional_intro' ? (
+            /* ── סוף שאלות החובה: יצירת פרופיל מיידית או המשך לשאלות הרשות ── */
+            <div className="space-y-2.5">
+              <Button
+                onClick={finish}
+                disabled={isSaving}
+                className="w-full bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-base font-bold disabled:opacity-40"
+              >
+                {isSaving ? 'שומר...' : '🎉 צור את הפרופיל שלי עכשיו'}
+              </Button>
               <Button
                 variant="outline"
-                onClick={back}
-                className="flex-none border-[#E5E5E5] rounded-2xl px-5 h-14 text-base"
+                onClick={next}
+                disabled={isSaving}
+                className="w-full border-[#E5E5E5] rounded-2xl h-12 text-base font-semibold text-[#7C3AED]"
               >
-                <ArrowRight className="w-4 h-4 me-1" />
-                חזור
+                יש לי עוד 2 דקות — לשאלות הרשות
+                <ArrowLeft className="w-4 h-4 ms-1" />
               </Button>
-            )}
-            <Button
-              onClick={next}
-              disabled={!canProceed() || isSaving}
-              className="flex-1 bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-base font-bold disabled:opacity-40"
-            >
-              {isSaving ? (form.photos.length > 0 ? 'מעלה תמונות...' : 'שומר...') : stepIndex === TOTAL - 1 ? '🎉 סיום ההרשמה' : (
-                <>
-                  המשך
-                  <ArrowLeft className="w-4 h-4 ms-1" />
-                </>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-3">
+                {stepIndex > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={back}
+                    className="flex-none border-[#E5E5E5] rounded-2xl px-5 h-14 text-base"
+                  >
+                    <ArrowRight className="w-4 h-4 me-1" />
+                    חזור
+                  </Button>
+                )}
+                <Button
+                  onClick={next}
+                  disabled={!canProceed() || isSaving}
+                  className="flex-1 bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-base font-bold disabled:opacity-40"
+                >
+                  {isSaving ? 'שומר...' : stepIndex === TOTAL - 1 ? '🎉 סיום ויצירת הפרופיל' : (
+                    <>
+                      המשך
+                      <ArrowLeft className="w-4 h-4 ms-1" />
+                    </>
+                  )}
+                </Button>
+              </div>
+              {isOptionalStep && stepIndex < TOTAL - 1 && (
+                <button
+                  onClick={finish}
+                  disabled={isSaving}
+                  className="w-full mt-2.5 text-center text-sm text-[#7C3AED] font-semibold py-1.5 hover:underline disabled:opacity-40"
+                >
+                  מספיק לי — צרו את הפרופיל עם מה שמילאתי 🎉
+                </button>
               )}
-            </Button>
-          </div>
-          {isOptionalStep && stepIndex < TOTAL - 1 && (
-            <button
-              onClick={next}
-              className="w-full mt-2.5 text-center text-sm text-[#7C3AED] font-semibold py-1.5 hover:underline"
-            >
-              אפשר לדלג על השלב הזה ←
-            </button>
+            </>
           )}
         </div>
       </div>
