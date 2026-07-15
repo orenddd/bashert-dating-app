@@ -197,16 +197,11 @@ function SingleSelectButtons({
   )
 }
 
-function StepHeader({ title, subtitle, optional, multi }: { title: string; subtitle?: string; optional?: boolean; multi?: boolean }) {
+function StepHeader({ title, subtitle, multi }: { title: string; subtitle?: string; optional?: boolean; multi?: boolean }) {
   return (
     <div className="mb-6">
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <h2 className="text-[28px] leading-tight font-bold text-[#0A0A0A]">{title}</h2>
-        {optional && (
-          <span className="text-sm bg-[#EDE9FE] text-[#7C3AED] px-3 py-1 rounded-full font-bold border border-[#DDD6FE]">
-            💜 רשות בלבד — אפשר לדלג
-          </span>
-        )}
       </div>
       {subtitle && <p className="text-[#737373] text-base leading-relaxed">{subtitle}</p>}
       {multi && (
@@ -284,14 +279,14 @@ function DualRangeSlider({
 const STEPS = [
   // ── שאלות חובה (קודם) ──
   'name', 'birth_year', 'gender', 'status', 'children_count',
-  'relationship_goal', 'children_future', 'seeking_partner',
+  'relationship_goal', 'children_future', 'seeking_partner', 'seeking_range',
   'religion', 'location', 'residence_intent',
   'photos', 'languages',
   'open_required',
   // ── מסך מעבר: סוף החובה — אפשר ליצור פרופיל כבר עכשיו ──
   'optional_intro',
   // ── שאלות רשות (אחר כך) ──
-  'height', 'seeking_range',
+  'height',
   'romantic_vision', 'friday_night', 'saturday_morning', 'hobbies',
   'open_optional',
 ] as const
@@ -505,7 +500,7 @@ export default function SetupProfilePage() {
     }
   }
 
-  const isOptionalStep = ['height', 'seeking_range', 'romantic_vision', 'friday_night', 'saturday_morning', 'hobbies', 'open_optional'].includes(currentStep)
+  const isOptionalStep = ['height', 'romantic_vision', 'friday_night', 'saturday_morning', 'hobbies', 'open_optional'].includes(currentStep)
 
   // ─── העלאת מדיה ברקע ─────────────────────────────────────────────────────────
   // ההעלאה מתחילה מיד עם בחירת הקבצים — בלחיצה על "צור פרופיל" לא ממתינים לה
@@ -977,7 +972,7 @@ export default function SetupProfilePage() {
         {/* ── Step: Children Count ── */}
         {currentStep === 'children_count' && (
           <div>
-            <StepHeader title="כמה ילדים יש לך?" subtitle={gSelf('גם לרווק יכולים להיות ילדים — והכל בסדר גמור 💛', 'גם לרווקה יכולים להיות ילדים — והכל בסדר גמור 💛')} />
+            <StepHeader title="כמה ילדים יש לך?" />
             <NumberWheel
               value={form.children_count}
               min={0}
@@ -1075,7 +1070,7 @@ export default function SetupProfilePage() {
         {/* ── Step: Seeking Range (optional) ── */}
         {currentStep === 'seeking_range' && (
           <div>
-            <StepHeader title="טווח העדפות" optional subtitle="באיזה טווח גילאים ומרחק לחפש לך התאמות?" />
+            <StepHeader title="טווח העדפות" subtitle="באיזה טווח גילאים ומרחק לחפש לך התאמות?" />
             <div className="space-y-10">
               <div>
                 <label className="text-base font-medium text-[#0A0A0A] mb-3 block">טווח גילאים</label>
@@ -1376,6 +1371,7 @@ export default function SetupProfilePage() {
                 { value: 'bbq', label: '🔥 על האש עם חברים ומשפחה' },
                 { value: 'chill', label: '🌊 אין לי תחביב מוגדר — זורם עם החיים' },
                 { value: 'politics', label: '🗞️ פוליטיקה, אקטואליה ולייעץ לטראמפ מה צריך לעשות…' },
+                { value: 'kineret', label: '🏖️ בחוף בטבריה, עומר אדם בפול ווליום, ערק עם אשכוליות ולקנח עם כיסאות כתר פלסטיק באוויר - אילון של מטקות' },
               ]}
               selected={form.hobbies.split(',').filter(Boolean)}
               onToggle={v => {
@@ -1417,7 +1413,7 @@ export default function SetupProfilePage() {
                 <Textarea
                   value={form.open_seeking}
                   onChange={e => set('open_seeking', e.target.value)}
-                  placeholder={gPartner('בת זוג אידיאלית בעיניי...', 'בן זוג אידיאלי בעיניי...')}
+                  placeholder={gPartner('בת הזוג האידיאלית בעיניי היא... אילו תכונות, ערכים וסגנון חיים חשובים לך? מה יגרום לך להרגיש שמצאת את האחת?', 'בן הזוג האידיאלי בעיניי הוא... אילו תכונות, ערכים וסגנון חיים חשובים לך? מה יגרום לך להרגיש שמצאת את האחד?')}
                   className="min-h-28 rounded-2xl border-[#E5E5E5] resize-none text-base"
                   maxLength={400}
                 />
@@ -1499,20 +1495,20 @@ export default function SetupProfilePage() {
             /* ── סוף שאלות החובה: יצירת פרופיל מיידית או המשך לשאלות הרשות ── */
             <div className="space-y-2.5">
               <Button
-                onClick={finish}
+                onClick={next}
                 disabled={isSaving}
-                className="w-full bg-[#0A0A0A] hover:bg-[#222] text-white rounded-2xl h-14 text-base font-bold disabled:opacity-40"
+                className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-2xl h-auto min-h-16 py-3.5 text-lg font-bold leading-snug whitespace-normal text-center shadow-lg shadow-[#7C3AED]/25 disabled:opacity-40"
               >
-                {isSaving ? 'שומר...' : '🎉 צור את הפרופיל שלי עכשיו'}
+                <Sparkles className="w-5 h-5 me-1.5 flex-none" />
+                יש לי עוד 2 דקות — לשאלות הרשות שיגדילו את הסיכוי שלך להתאמה
               </Button>
               <Button
                 variant="outline"
-                onClick={next}
+                onClick={finish}
                 disabled={isSaving}
-                className="w-full border-[#E5E5E5] rounded-2xl h-12 text-base font-semibold text-[#7C3AED]"
+                className="w-full border-[#E5E5E5] rounded-2xl h-12 text-base font-semibold text-[#404040] disabled:opacity-40"
               >
-                יש לי עוד 2 דקות — לשאלות הרשות
-                <ArrowLeft className="w-4 h-4 ms-1" />
+                {isSaving ? 'שומר...' : '🎉 צור את הפרופיל שלי עכשיו'}
               </Button>
             </div>
           ) : (

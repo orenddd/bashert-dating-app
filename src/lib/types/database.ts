@@ -63,6 +63,11 @@ export interface DbProfile {
   flight_mode_lng: number | null
   is_verified: boolean
   is_online: boolean
+  is_admin: boolean
+  approval_status: 'pending' | 'approved' | 'rejected'
+  approval_note: string
+  approved_at: string | null
+  approved_by: string | null
   last_seen: string
   profile_complete: boolean
   subscription_tier: SubscriptionTier

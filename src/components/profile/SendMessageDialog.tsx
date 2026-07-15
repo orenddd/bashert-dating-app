@@ -18,9 +18,10 @@ interface Props {
   onClose: () => void
   profile: DbProfile
   photos: DbPhoto[]
+  onSent?: () => void
 }
 
-export function SendMessageDialog({ open, onClose, profile, photos }: Props) {
+export function SendMessageDialog({ open, onClose, profile, photos, onSent }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const [message, setMessage] = useState('')
@@ -39,9 +40,11 @@ export function SendMessageDialog({ open, onClose, profile, photos }: Props) {
       toast.success(t.messages.request_sent)
       setMessage('')
       onClose()
+      onSent?.()
     } else if (result === 'already_pending') {
       toast.info('כבר שלחת בקשת הודעה שממתינה לאישור')
       onClose()
+      onSent?.()
     } else {
       toast.error('שגיאה בשליחת ההודעה. נסה שנית.')
     }

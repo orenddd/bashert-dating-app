@@ -5,9 +5,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import { AppNav } from '@/components/layout/AppNav'
 import { useAuth } from '@/components/shared/AuthProvider'
 
-// בשלב הנוכחי המערכת חסומה לפרופילים אחרים — רק הרשמה, בניית פרופיל
-// וצפייה/עריכה של הפרופיל האישי. מסכים אלו מופנים חזרה למסך הבית.
-const BLOCKED_PREFIXES = ['/discover', '/matches', '/messages', '/search']
+// גילוי, לייקים, הודעות והתאמות פתוחים. חיפוש מתקדם עדיין חסום.
+const BLOCKED_PREFIXES = ['/search']
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()

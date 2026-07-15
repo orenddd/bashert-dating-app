@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -137,16 +137,9 @@ export default function ProfilePage() {
   const { t, isRTL } = useTranslation()
   const { user } = useAuth()
   const params = useParams()
-  const router = useRouter()
   const userId = params.userId as string
 
-  // בשלב זה ניתן לצפות רק בפרופיל האישי (תצוגה מקדימה). פרופילים אחרים חסומים.
   const isOwnProfile = !!user && userId === user.id
-  useEffect(() => {
-    if (user && !isOwnProfile) {
-      router.replace('/home')
-    }
-  }, [user, isOwnProfile, router])
 
   const [profile, setProfile] = useState<DbProfile | null>(null)
   const [photos, setPhotos] = useState<DbPhoto[]>([])
@@ -226,7 +219,7 @@ export default function ProfilePage() {
       {/* Back button */}
       <div className="p-4 pt-3">
         <Button variant="ghost" asChild size="sm" className="rounded-2xl text-gray-600 hover:text-[#171411]">
-          <Link href="/profile/me">
+          <Link href={isOwnProfile ? '/profile/me' : '/discover'}>
             <BackArrow className="w-4 h-4 me-2" />
             {t.common.back}
           </Link>

@@ -28,6 +28,8 @@ export async function fetchDiscoverProfiles(
     .select('*')
     .neq('user_id', currentUserId)
     .eq('profile_complete', true)
+    // רק פרופילים שאושרו ידנית ע"י מנהל מופיעים בגילוי
+    .eq('approval_status', 'approved')
 
   // Gender filter based on what the current user is seeking
   if (me?.seeking && me.seeking !== 'both') {
@@ -114,6 +116,55 @@ export async function fetchCurrentUserProfile(userId: string): Promise<DbProfile
     .single() as unknown as SupabaseResult<DbProfile>
 
   return data
+}
+
+// ─── Admin moderation ────────────────────────────────────────────────────────
+
+export async function fetchProfilesByApproval(
+  status: 'pending' | 'approved' | 'rejected',
+): Promise<{ profile: DbProfile; photos: DbPhoto[] }[]> {
+  const supabase = createClient()
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('approval_status', status)
+    .eq('profile_complete', true)
+    .order('created_at', { ascending: true }) as unknown as SupabaseResult<DbProfile[]>
+
+  if (!profiles?.length) return []
+
+  const userIds = profiles.map(p => p.user_id)
+  const { data: photos } = await supabase
+    .from('photos')
+    .select('*')
+    .in('user_id', userIds)
+    .order('order_index') as unknown as SupabaseResult<DbPhoto[]>
+
+  const allPhotos = photos ?? []
+  return profiles.map(profile => ({
+    profile,
+    photos: allPhotos.filter(ph => ph.user_id === profile.user_id),
+  }))
+}
+
+export async function setProfileApproval(
+  userId: string,
+  status: 'pending' | 'approved' | 'rejected',
+  note = '',
+): Promise<boolean> {
+  const supabase = createClient()
+  const patch: Record<string, unknown> = {
+    approval_status: status,
+    approval_note: note,
+    approved_at: status === 'approved' ? new Date().toISOString() : null,
+  }
+  const { error } = await (supabase.from('profiles') as unknown as {
+    update: (v: unknown) => { eq: (c: string, val: string) => Promise<{ error: { message: string } | null }> }
+  })
+    .update(patch)
+    .eq('user_id', userId)
+  return !error
 }
 
 export async function upsertProfile(data: Partial<DbProfile> & { user_id: string }): Promise<DbProfile | null> {

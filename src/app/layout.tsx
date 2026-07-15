@@ -22,11 +22,8 @@ const frankRuhl = Frank_Ruhl_Libre({
 export const metadata: Metadata = {
   title: 'מצאתי אותך — הכרויות',
   description: 'אפליקציית ההיכרויות הישראלית — מצא את הזיווג שלך',
-  icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
-  },
+  // האייקונים נטענים אוטומטית מקבצי הקונבנציה של Next:
+  // src/app/favicon.ico, src/app/icon.png, src/app/apple-icon.png
 }
 
 // resizes-content מבטיח שכאשר מקלדת הטלפון נפתחת, ה-viewport מתכווץ
