@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/shared/AuthProvider'
-import { fetchProfilesByApproval, setProfileApproval } from '@/lib/api/profiles'
+import { fetchProfilesByApproval, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
 import { cn } from '@/lib/utils'
 import {
   Shield, Users, MessageSquare, CheckCircle2, Clock, Eye,
-  ChevronDown, ChevronUp, RefreshCw, Image, X, MapPin, UserCheck,
+  ChevronDown, ChevronUp, RefreshCw, Image, X, MapPin, UserCheck, Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 
@@ -171,6 +172,20 @@ export default function AdminPage() {
     await (supabase.from('feedback') as any).update({ admin_note: editingNote }).eq('id', id)
     setFeedback(prev => prev.map(f => f.id === id ? { ...f, admin_note: editingNote } : f))
     setExpandedId(null)
+  }
+
+  const deleteUser = async (userId: string, name: string) => {
+    if (!window.confirm(`למחוק לצמיתות את המשתמש ${name}? כל הנתונים, ההודעות והתמונות יימחקו. אין דרך לשחזר.`)) return
+    setBusyId(userId)
+    const res = await deleteUserAccount(userId)
+    setBusyId(null)
+    if (!res.ok) {
+      toast.error(res.error ?? 'שגיאה במחיקת המשתמש')
+      return
+    }
+    toast.success('המשתמש נמחק לצמיתות')
+    setUsers(prev => prev.filter(u => u.user_id !== userId))
+    setApprovals(prev => prev.filter(a => a.profile.user_id !== userId))
   }
 
   const toggleAdmin = async (userId: string, current: boolean) => {
@@ -560,17 +575,27 @@ export default function AdminPage() {
                         </td>
                         <td className="px-4 py-3">
                           {u.user_id !== user?.id && (
-                            <button
-                              onClick={() => toggleAdmin(u.user_id, !!u.is_admin)}
-                              className={cn(
-                                'text-[10px] px-2 py-1 rounded-full border transition-all',
-                                u.is_admin
-                                  ? 'border-purple-300 text-purple-700 hover:bg-purple-50'
-                                  : 'border-[#E5E5E5] text-[#737373] hover:border-[#0A0A0A]'
-                              )}
-                            >
-                              {u.is_admin ? 'הסר מנהל' : 'הפוך למנהל'}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => toggleAdmin(u.user_id, !!u.is_admin)}
+                                className={cn(
+                                  'text-[10px] px-2 py-1 rounded-full border transition-all',
+                                  u.is_admin
+                                    ? 'border-purple-300 text-purple-700 hover:bg-purple-50'
+                                    : 'border-[#E5E5E5] text-[#737373] hover:border-[#0A0A0A]'
+                                )}
+                              >
+                                {u.is_admin ? 'הסר מנהל' : 'הפוך למנהל'}
+                              </button>
+                              <button
+                                onClick={() => deleteUser(u.user_id, u.display_name || `${u.first_name} ${u.last_name}`)}
+                                disabled={busyId === u.user_id}
+                                title="מחק משתמש"
+                                className="text-[10px] px-2 py-1 rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-all flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <Trash2 className="w-3 h-3" />מחק
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>

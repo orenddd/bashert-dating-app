@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useTranslation } from '@/lib/i18n'
-import { fetchProfile } from '@/lib/api/profiles'
+import { fetchProfile, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
 import { sendLike, removeLike, isLiked } from '@/lib/api/likes'
 import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBadges'
 import { SendMessageDialog } from '@/components/profile/SendMessageDialog'
@@ -14,7 +14,8 @@ import { calcAge, formatHeight } from '@/lib/utils/age'
 import {
   Shield, MapPin, Heart, Star, MessageCircle,
   ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
-  Languages, Home, Sparkles, CalendarHeart, Sun
+  Languages, Home, Sparkles, CalendarHeart, Sun,
+  CheckCircle2, X, Trash2, ShieldCheck
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -133,13 +134,21 @@ function OpenQuestion({ label, value }: { label: string; value: string }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
+const APPROVAL_LABELS: Record<string, { label: string; className: string }> = {
+  pending: { label: 'ממתין לאישור', className: 'bg-yellow-100 text-yellow-800' },
+  approved: { label: 'מאושר', className: 'bg-emerald-100 text-emerald-800' },
+  rejected: { label: 'נדחה', className: 'bg-red-100 text-red-700' },
+}
+
 export default function ProfilePage() {
   const { t, isRTL } = useTranslation()
   const { user } = useAuth()
   const params = useParams()
+  const router = useRouter()
   const userId = params.userId as string
 
   const isOwnProfile = !!user && userId === user.id
+  const isAdmin = (user?.profile as unknown as Record<string, unknown>)?.is_admin === true
 
   const [profile, setProfile] = useState<DbProfile | null>(null)
   const [photos, setPhotos] = useState<DbPhoto[]>([])
@@ -148,6 +157,7 @@ export default function ProfilePage() {
   const [liked, setLiked] = useState(false)
   const [superLiked, setSuperLiked] = useState(false)
   const [messagingOpen, setMessagingOpen] = useState(false)
+  const [adminBusy, setAdminBusy] = useState(false)
 
   const BackArrow = isRTL ? ArrowRight : ArrowLeft
 
@@ -206,6 +216,32 @@ export default function ProfilePage() {
     }
   }
 
+  const handleAdminApproval = async (status: 'approved' | 'rejected') => {
+    setAdminBusy(true)
+    const ok = await setProfileApproval(profile.user_id, status)
+    setAdminBusy(false)
+    if (ok) {
+      setProfile(prev => prev ? { ...prev, approval_status: status } : prev)
+      toast.success(status === 'approved' ? '✅ הפרופיל אושר' : 'הפרופיל נדחה')
+    } else {
+      toast.error('שגיאה בעדכון סטטוס האישור')
+    }
+  }
+
+  const handleAdminDelete = async () => {
+    const name = `${profile.first_name} ${profile.last_name}`.trim()
+    if (!window.confirm(`למחוק לצמיתות את המשתמש ${name}? כל הנתונים, ההודעות והתמונות יימחקו. אין דרך לשחזר.`)) return
+    setAdminBusy(true)
+    const res = await deleteUserAccount(profile.user_id)
+    setAdminBusy(false)
+    if (res.ok) {
+      toast.success('המשתמש נמחק לצמיתות')
+      router.replace('/admin')
+    } else {
+      toast.error(res.error ?? 'שגיאה במחיקת המשתמש')
+    }
+  }
+
   const handleSuperLike = async () => {
     if (!user || superLiked) return
     await sendLike(user.id, profile.user_id, true)
@@ -225,6 +261,45 @@ export default function ProfilePage() {
           </Link>
         </Button>
       </div>
+
+      {/* Admin bar */}
+      {isAdmin && !isOwnProfile && (
+        <div className="mx-4 mb-4 bg-white border border-[#E5E5E5] rounded-2xl p-3 flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 me-auto">
+            <ShieldCheck className="w-4 h-4 text-[#7C3AED]" />
+            <span className="text-sm font-bold text-[#171411]">ניהול</span>
+            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+              APPROVAL_LABELS[profile.approval_status]?.className ?? 'bg-gray-100 text-gray-600')}>
+              {APPROVAL_LABELS[profile.approval_status]?.label ?? profile.approval_status}
+            </span>
+          </div>
+          {profile.approval_status !== 'approved' && (
+            <button
+              onClick={() => handleAdminApproval('approved')}
+              disabled={adminBusy}
+              className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-4 h-4" />אשר
+            </button>
+          )}
+          {profile.approval_status !== 'rejected' && (
+            <button
+              onClick={() => handleAdminApproval('rejected')}
+              disabled={adminBusy}
+              className="h-9 px-4 rounded-xl border border-[#E5E5E5] text-[#B8472A] hover:bg-red-50 text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <X className="w-4 h-4" />דחה
+            </button>
+          )}
+          <button
+            onClick={handleAdminDelete}
+            disabled={adminBusy}
+            className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4" />מחק משתמש
+          </button>
+        </div>
+      )}
 
       {/* Photo gallery */}
       <div className="relative h-[420px] md:h-[520px] mx-4 rounded-3xl overflow-hidden bg-[#EBE4D2]">

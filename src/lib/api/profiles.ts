@@ -167,6 +167,25 @@ export async function setProfileApproval(
   return !error
 }
 
+// מחיקת משתמש מלאה (auth + כל הנתונים + Storage) — למנהלים בלבד, דרך route בצד שרת
+export async function deleteUserAccount(userId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { ok: false, error: 'נדרשת התחברות' }
+
+  const res = await fetch('/api/admin/delete-user', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ userId }),
+  })
+  if (res.ok) return { ok: true }
+  const json = await res.json().catch(() => ({}))
+  return { ok: false, error: (json as { error?: string }).error ?? 'שגיאה במחיקה' }
+}
+
 export async function upsertProfile(data: Partial<DbProfile> & { user_id: string }): Promise<DbProfile | null> {
   const supabase = createClient()
   const { data: profile, error } = await supabase
