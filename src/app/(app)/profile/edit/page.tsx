@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Camera, X, Check, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { detectFace, photoObjectPosition, type FaceCheckResult } from '@/lib/faceDetection'
 import type { DbPhoto } from '@/lib/types/database'
 
 // ─── Helper Components ──────────────────────────────────────────────────────
@@ -208,6 +209,8 @@ export default function EditProfilePage() {
 
   const [existingPhotos, setExistingPhotos] = useState<DbPhoto[]>([])
   const [newPhotos, setNewPhotos] = useState<File[]>([])
+  // תוצאת זיהוי הפנים לכל קובץ חדש — אזהרה על תמונה בלי פנים ומוקד חיתוך לתצוגה
+  const [faceChecks, setFaceChecks] = useState<Map<File, FaceCheckResult>>(new Map())
   const [photosToDelete, setPhotosToDelete] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -277,8 +280,20 @@ export default function EditProfilePage() {
     if (!e.target.files) return
     const files = Array.from(e.target.files)
     const total = existingPhotos.length - photosToDelete.length + newPhotos.length
-    setNewPhotos(prev => [...prev, ...files].slice(0, Math.max(0, 10 - total)))
+    const accepted = files.slice(0, Math.max(0, 10 - total))
+    setNewPhotos(prev => [...prev, ...accepted])
     e.target.value = ''
+    // זיהוי פנים לתמונות החדשות — תמונה בלי פנים מסומנת באזהרה
+    const images = accepted.filter(f => f.type.startsWith('image'))
+    void Promise.all(images.map(async file => {
+      const res = await detectFace(file)
+      setFaceChecks(prev => new Map(prev).set(file, res))
+      return res.status
+    })).then(statuses => {
+      if (statuses.includes('no_face')) {
+        toast.warning('שימו לב: בחלק מהתמונות החדשות לא זיהינו פנים — כדאי לבחור תמונות שבהן רואים אתכם בבירור')
+      }
+    })
   }
 
   const markDeleteExisting = (id: string) => {
@@ -291,6 +306,17 @@ export default function EditProfilePage() {
 
   const saveSection = async (section: 'personal' | 'seeking' | 'lifestyle' | 'about' | 'photos') => {
     if (!user?.id) return
+    if (section === 'photos') {
+      // לא מאפשרים מצב שבו אף תמונה בפרופיל לא מציגה פנים.
+      // תמונות קיימות (שהועלו לפני הפיצ'ר) נחשבות תקינות; 'unknown' לא חוסם.
+      const keptExistingImages = existingPhotos.filter(p => !photosToDelete.includes(p.id) && p.media_type === 'image')
+      const newImages = newPhotos.filter(f => f.type.startsWith('image'))
+      const allNewNoFace = newImages.length > 0 && newImages.every(f => faceChecks.get(f)?.status === 'no_face')
+      if (keptExistingImages.length === 0 && allNewNoFace) {
+        toast.error('נדרשת לפחות תמונה אחת שבה הפנים נראים בבירור')
+        return
+      }
+    }
     setSaving(true)
     try {
       if (section === 'photos') {
@@ -301,7 +327,7 @@ export default function EditProfilePage() {
         if (newPhotos.length > 0) {
           const visibleExisting = existingPhotos.filter(p => !photosToDelete.includes(p.id))
           const startIndex = visibleExisting.length
-          const toInsert: { user_id: string; url: string; is_primary: boolean; order_index: number; media_type: string }[] = []
+          const toInsert: { user_id: string; url: string; is_primary: boolean; order_index: number; media_type: string; face_focus_x: number | null; face_focus_y: number | null }[] = []
 
           for (let i = 0; i < newPhotos.length; i++) {
             const file = newPhotos[i]
@@ -314,12 +340,23 @@ export default function EditProfilePage() {
               .upload(path, file, { upsert: true })
             if (uploadErr) { console.error(uploadErr); continue }
             const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(uploaded.path)
-            toInsert.push({ user_id: user.id, url: publicUrl, is_primary: startIndex + i === 0, order_index: startIndex + i, media_type: mediaType })
+            const face = faceChecks.get(file)
+            toInsert.push({
+              user_id: user.id, url: publicUrl, is_primary: startIndex + i === 0,
+              order_index: startIndex + i, media_type: mediaType,
+              face_focus_x: face?.focusX ?? null, face_focus_y: face?.focusY ?? null,
+            })
           }
 
           if (toInsert.length > 0) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await supabase.from('photos').insert(toInsert as any)
+            const { error: insertErr } = await supabase.from('photos').insert(toInsert as any)
+            if (insertErr && String(insertErr.message).includes('face_focus')) {
+              // מיגרציית face_focus טרם רצה על ה-DB — נשמור בלי מוקד הפנים
+              const withoutFocus = toInsert.map(({ face_focus_x: _x, face_focus_y: _y, ...rest }) => rest)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await supabase.from('photos').insert(withoutFocus as any)
+            }
           }
         }
 
@@ -809,7 +846,7 @@ export default function EditProfilePage() {
                 {/* Existing photos */}
                 {visibleExisting.map((photo, i) => (
                   <div key={photo.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-[#E5E5E5]">
-                    <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                    <img src={photo.url} alt="" className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photo) }} />
                     <button
                       onClick={() => markDeleteExisting(photo.id)}
                       className="absolute top-1 end-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
@@ -834,6 +871,11 @@ export default function EditProfilePage() {
                     >
                       <X className="w-3 h-3" />
                     </button>
+                    {faceChecks.get(file)?.status === 'no_face' && (
+                      <div className="absolute bottom-6 left-0 right-0 bg-amber-500/95 text-white text-[10px] text-center py-1 font-semibold">
+                        ⚠️ לא רואים פנים
+                      </div>
+                    )}
                     <div className="absolute bottom-0 left-0 right-0 bg-[#0A0A0A]/80 text-white text-xs text-center py-1">
                       חדשה
                     </div>

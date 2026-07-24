@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { fetchDiscoverProfiles } from '@/lib/api/profiles'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import { sendLike, isLiked } from '@/lib/api/likes'
 import { fetchSentRequestsMap, type SentStatusMap } from '@/lib/api/messages'
 import { SendMessageDialog } from '@/components/profile/SendMessageDialog'
@@ -152,7 +153,7 @@ function Media({ photo, name, className }: { photo?: DbPhoto; name: string; clas
       </div>
     )
   }
-  return <img src={photo.url} alt={name} className={cn('w-full h-full object-cover', className)} />
+  return <img src={photo.url} alt={name} className={cn('w-full h-full object-cover', className)} style={{ objectPosition: photoObjectPosition(photo) }} />
 }
 
 // ─── Full one-at-a-time profile ────────────────────────────────────────────────

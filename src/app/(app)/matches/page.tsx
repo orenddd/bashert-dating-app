@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/layout/AppHeader'
 import { useTranslation } from '@/lib/i18n'
 import { fetchLikesReceived, fetchLikesSent, sendLike } from '@/lib/api/likes'
 import { calcAge } from '@/lib/utils/age'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import { Shield, MessageCircle, Heart, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -49,7 +50,7 @@ export default function LikesPage() {
     return (
       <div key={like.id} className="bg-[#FBF6E8] rounded-2xl overflow-hidden border border-[rgba(23,20,17,0.08)] hover:shadow-md transition-shadow">
         <div className="relative aspect-[3/4]">
-          <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" />
+          <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photo) }} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
           {profile.is_online && <div className="absolute top-3 end-3 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-white" />}
           {profile.is_verified && (
@@ -118,7 +119,7 @@ export default function LikesPage() {
       <Link key={like.id} href={`/profile/${profile.user_id}`}>
         <div className="bg-[#FBF6E8] rounded-2xl overflow-hidden border border-[rgba(23,20,17,0.08)] hover:shadow-md transition-shadow">
           <div className="relative aspect-[3/4]">
-            <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" />
+            <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photo) }} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
             {profile.is_online && <div className="absolute top-3 end-3 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-white" />}
             {like.is_super_like && (

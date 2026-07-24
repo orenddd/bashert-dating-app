@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS photos (
   thumbnail_url TEXT,
   is_primary    BOOLEAN NOT NULL DEFAULT FALSE,
   order_index   INTEGER NOT NULL DEFAULT 0,
+  face_focus_x  REAL,            -- מרכז הפנים ביחס לרוחב (0..1), NULL אם לא זוהו
+  face_focus_y  REAL,            -- מרכז הפנים ביחס לגובה (0..1), NULL אם לא זוהו
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

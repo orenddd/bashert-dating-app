@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { fetchProfilesByApproval, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
 import { cn } from '@/lib/utils'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import {
   Shield, Users, MessageSquare, CheckCircle2, Clock, Eye,
   ChevronDown, ChevronUp, RefreshCw, Image, X, MapPin, UserCheck, Trash2,
@@ -310,7 +311,7 @@ export default function AdminPage() {
                       <div className="w-24 h-24 rounded-2xl overflow-hidden bg-[#F0F0F0] flex-shrink-0">
                         {primary
                           // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={primary.url} alt="" className="w-full h-full object-cover" />
+                          ? <img src={primary.url} alt="" className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(primary) }} />
                           : <div className="w-full h-full flex items-center justify-center text-4xl text-[#D4D4D4]">👤</div>
                         }
                       </div>

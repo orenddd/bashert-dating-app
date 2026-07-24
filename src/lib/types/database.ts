@@ -85,6 +85,10 @@ export interface DbPhoto {
   is_primary: boolean
   order_index: number
   media_type: MediaType
+  // מוקד הפנים שזוהה בהעלאה (0..1) — משמש ל-object-position בתצוגה.
+  // אופציונלי: NULL כשלא זוהו פנים או בתמונות שהועלו לפני הפיצ'ר.
+  face_focus_x?: number | null
+  face_focus_y?: number | null
   created_at: string
 }
 

@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart, Loader2, RotateCcw, PartyPopper } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { detectFace } from '@/lib/faceDetection'
 import { YearWheel } from '@/components/shared/YearWheel'
 import { NumberWheel } from '@/components/shared/NumberWheel'
 import { CityAutocomplete } from '@/components/shared/CityAutocomplete'
@@ -73,6 +74,10 @@ interface PhotoItem {
   path?: string
   mediaType: 'image' | 'video' | 'audio'
   file?: File // נשמר בזיכרון בלבד לצורך ניסיון חוזר — לא נכנס לטיוטה
+  // תוצאת זיהוי הפנים (תמונות בלבד): checking בזמן הבדיקה; unknown = כשל טכני, לא חוסמים
+  faceCheck?: 'checking' | 'face' | 'no_face' | 'unknown'
+  focusX?: number // מרכז הפנים (0..1) — נשמר ל-DB לחיתוך תצוגה סביב הפנים
+  focusY?: number
 }
 
 // טיוטת התקדמות ב-localStorage — כל מה שהוזן נשמר גם בלי ליצור פרופיל,
@@ -471,6 +476,11 @@ export default function SetupProfilePage() {
   const currentStep: Step = STEPS[stepIndex]
   const progress = ((stepIndex + 1) / TOTAL) * 100
 
+  // כל התמונות (לא וידאו/שמע) נבדקו ולא זוהו פנים באף אחת — חוסמים את ההמשך.
+  // 'unknown' (כשל טכני) לא חוסם, כדי שבעיה בזיהוי לא תתקע משתמשים.
+  const imagePhotos = photos.filter(p => p.mediaType === 'image')
+  const noFaceInAnyPhoto = imagePhotos.length > 0 && imagePhotos.every(p => p.faceCheck === 'no_face')
+
   // Validation per step
   const canProceed = (): boolean => {
     switch (currentStep) {
@@ -487,7 +497,7 @@ export default function SetupProfilePage() {
       case 'religion': return form.religion.length > 0
       case 'location': return form.city.trim().length > 0
       case 'residence_intent': return form.residence_intent.length > 0
-      case 'photos': return photos.length >= 3
+      case 'photos': return photos.length >= 3 && !noFaceInAnyPhoto
       case 'languages': return form.languages.length > 0
       case 'optional_intro': return true
       case 'romantic_vision': return true
@@ -555,9 +565,12 @@ export default function SetupProfilePage() {
       if (user?.id) {
         // סדר התמונות לפי המסך; ה-URL מגיע מהמפה שמתעדכנת סינכרונית בסיום כל העלאה
         const readyMetas = photos
-          .map(p => (p.url && p.path
-            ? { url: p.url, mediaType: p.mediaType }
-            : uploadedMetaRef.current.get(p.id)))
+          .map(p => {
+            const meta = p.url && p.path
+              ? { url: p.url, mediaType: p.mediaType }
+              : uploadedMetaRef.current.get(p.id)
+            return meta ? { ...meta, focusX: p.focusX, focusY: p.focusY } : null
+          })
           .filter((m): m is NonNullable<typeof m> => Boolean(m))
         const toInsert = readyMetas.map((meta, i) => ({
           user_id: user.id,
@@ -565,6 +578,8 @@ export default function SetupProfilePage() {
           is_primary: i === 0,
           order_index: i,
           media_type: meta.mediaType,
+          face_focus_x: meta.focusX ?? null,
+          face_focus_y: meta.focusY ?? null,
         }))
 
         if (toInsert.length > 0) {
@@ -572,7 +587,13 @@ export default function SetupProfilePage() {
           // מחק תמונות ישנות והכנס חדשות
           await supabase.from('photos').delete().eq('user_id', user.id)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: insertErr } = await (supabase.from('photos') as any).insert(toInsert)
+          let { error: insertErr } = await (supabase.from('photos') as any).insert(toInsert)
+          if (insertErr && String(insertErr.message).includes('face_focus')) {
+            // מיגרציית face_focus טרם רצה על ה-DB — נשמור בלי מוקד הפנים
+            const withoutFocus = toInsert.map(({ face_focus_x: _x, face_focus_y: _y, ...rest }) => rest)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ;({ error: insertErr } = await (supabase.from('photos') as any).insert(withoutFocus))
+          }
           if (insertErr) console.error('photos insert error:', insertErr)
         }
       }
@@ -666,17 +687,34 @@ export default function SetupProfilePage() {
     const files = Array.from(e.target.files)
     e.target.value = '' // מאפשר לבחור שוב את אותו קובץ אחרי הסרה
     const room = Math.max(0, 10 - photos.length)
-    const newItems: (PhotoItem & { file: File })[] = files.slice(0, room).map(file => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      previewUrl: URL.createObjectURL(file),
-      status: 'uploading' as const,
-      mediaType: file.type.startsWith('video') ? 'video' as const
-        : file.type.startsWith('audio') ? 'audio' as const : 'image' as const,
-      file,
-    }))
+    const newItems: (PhotoItem & { file: File })[] = files.slice(0, room).map(file => {
+      const mediaType = file.type.startsWith('video') ? 'video' as const
+        : file.type.startsWith('audio') ? 'audio' as const : 'image' as const
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        previewUrl: URL.createObjectURL(file),
+        status: 'uploading' as const,
+        mediaType,
+        faceCheck: mediaType === 'image' ? 'checking' as const : undefined,
+        file,
+      }
+    })
     setPhotos(prev => [...prev, ...newItems])
     // ההעלאה יוצאת לדרך מיד — עד הלחיצה על "צור פרופיל" היא כבר תסתיים
     newItems.forEach(item => uploadItem(item, item.file))
+    // זיהוי פנים במקביל להעלאה — תמונה בלי פנים מקבלת סימון אזהרה
+    const imageItems = newItems.filter(item => item.mediaType === 'image')
+    void Promise.all(imageItems.map(async item => {
+      const res = await detectFace(item.file)
+      setPhotos(prev => prev.map(p => p.id === item.id
+        ? { ...p, faceCheck: res.status, focusX: res.focusX, focusY: res.focusY }
+        : p))
+      return res.status
+    })).then(statuses => {
+      if (statuses.includes('no_face')) {
+        toast.warning('שימו לב: בחלק מהתמונות לא זיהינו פנים — כדאי לבחור תמונות שבהן רואים אתכם בבירור')
+      }
+    })
   }
 
   const removePhoto = (id: string) => {
@@ -1214,6 +1252,14 @@ export default function SetupProfilePage() {
                   >
                     <X className="w-3 h-3" />
                   </button>
+                  {item.faceCheck === 'no_face' && item.status !== 'error' && (
+                    <div className={cn(
+                      'absolute left-0 right-0 bg-amber-500/95 text-white text-[10px] text-center py-1 font-semibold',
+                      i === 0 ? 'bottom-6' : 'bottom-0'
+                    )}>
+                      ⚠️ לא רואים פנים
+                    </div>
+                  )}
                   {i === 0 && (
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs text-center py-1">
                       ראשית
@@ -1264,6 +1310,11 @@ export default function SetupProfilePage() {
               {photos.some(p => p.status === 'error') && (
                 <p className="text-xs text-red-500 font-medium">
                   חלק מהקבצים לא הועלו — לחצו עליהם לניסיון חוזר
+                </p>
+              )}
+              {noFaceInAnyPhoto && (
+                <p className="text-xs text-red-500 font-medium">
+                  נדרשת לפחות תמונה אחת שבה הפנים שלך נראים בבירור 🙂
                 </p>
               )}
             </div>

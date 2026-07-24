@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/layout/AppHeader'
 import { useTranslation } from '@/lib/i18n'
 import { fetchDiscoverProfiles } from '@/lib/api/profiles'
 import { calcAge } from '@/lib/utils/age'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBadges'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -218,7 +219,7 @@ export default function SearchPage() {
                 <Link key={profile.id} href={`/profile/${profile.user_id}`}>
                   <div className="bg-white rounded-3xl overflow-hidden border border-gray-100 hover:border-[#B8472A]/30 hover:shadow-md transition-all group">
                     <div className="relative aspect-[3/4]">
-                      <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" style={{ objectPosition: photoObjectPosition(photo) }} />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                       {profile.is_online && <div className="absolute top-2 end-2 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />}
                       {profile.is_verified && <div className="absolute top-2 start-2"><Shield className="w-4 h-4 text-blue-400 fill-blue-400" /></div>}

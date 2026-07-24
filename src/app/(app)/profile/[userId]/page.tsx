@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import { useAuth } from '@/components/shared/AuthProvider'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 
@@ -303,7 +304,7 @@ export default function ProfilePage() {
 
       {/* Photo gallery */}
       <div className="relative h-[420px] md:h-[520px] mx-4 rounded-3xl overflow-hidden bg-[#EBE4D2]">
-        <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" />
+        <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photos[photoIdx]) }} />
 
         {photos.length > 1 && (
           <div className="absolute top-4 start-4 end-4 flex gap-1">

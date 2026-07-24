@@ -7,6 +7,7 @@ import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBad
 import { calcAge } from '@/lib/utils/age'
 import { MapPin, Shield, ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import Link from 'next/link'
 
 interface Props {
@@ -108,6 +109,7 @@ export function SwipeCard({ profile, photos, onLike, onPass, onSuperLike, isTop 
         src={photoUrl}
         alt={profile.display_name}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+        style={{ objectPosition: photoObjectPosition(photos[photoIdx]) }}
         draggable={false}
       />
 

@@ -7,6 +7,7 @@ import { useAuth } from '@/components/shared/AuthProvider'
 import { fetchProfile } from '@/lib/api/profiles'
 import { createClient } from '@/lib/supabase/client'
 import { formatHeight } from '@/lib/utils/age'
+import { photoObjectPosition } from '@/lib/faceDetection'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -111,7 +112,7 @@ export default function MyProfilePage() {
         <div className="bg-white rounded-3xl overflow-hidden border border-[#E5E5E5]">
           <div className="relative h-48 bg-[#F5F5F5]">
             {photoUrl ? (
-              <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" />
+              <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(primaryPhoto) }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <span className="text-6xl text-[#D4D4D4]">👤</span>
@@ -220,7 +221,7 @@ export default function MyProfilePage() {
           <div className="grid grid-cols-3 gap-2">
             {photos.map((photo, i) => (
               <div key={photo.id} className="relative aspect-square rounded-2xl overflow-hidden">
-                <img src={photo.url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                <img src={photo.url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photo) }} />
                 {photo.is_primary && (
                   <div className="absolute bottom-1 start-1 bg-[#0A0A0A] text-white text-xs px-1.5 py-0.5 rounded">
                     {t.profile.primary_photo}
