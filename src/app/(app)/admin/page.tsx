@@ -8,6 +8,7 @@ import { useAuth } from '@/components/shared/AuthProvider'
 import { fetchProfilesByApproval, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
 import { cn } from '@/lib/utils'
 import { photoObjectPosition } from '@/lib/faceDetection'
+import { calcAgeFromProfile } from '@/lib/utils/age'
 import {
   Shield, Users, MessageSquare, CheckCircle2, Clock, Eye,
   ChevronDown, ChevronUp, RefreshCw, Image, X, MapPin, UserCheck, Trash2,
@@ -304,7 +305,7 @@ export default function AdminPage() {
               {approvals.map(({ profile, photos }) => {
                 const primary = photos.find(p => p.is_primary && p.media_type === 'image')
                   ?? photos.find(p => p.media_type === 'image')
-                const age = profile.birth_year ? new Date().getFullYear() - profile.birth_year : null
+                const age = calcAgeFromProfile(profile)
                 return (
                   <div key={profile.user_id} className="bg-white rounded-2xl border border-[#E5E5E5] overflow-hidden flex flex-col">
                     <div className="flex gap-3 p-3">

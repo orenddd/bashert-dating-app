@@ -8,7 +8,7 @@ import { sendLike, isLiked } from '@/lib/api/likes'
 import { fetchSentRequestsMap, type SentStatusMap } from '@/lib/api/messages'
 import { SendMessageDialog } from '@/components/profile/SendMessageDialog'
 import { StickyNameBar } from '@/components/profile/StickyNameBar'
-import { formatHeight } from '@/lib/utils/age'
+import { formatHeight, calcAgeFromProfile } from '@/lib/utils/age'
 import {
   Shield, MapPin, Heart, MessageCircle, X, SlidersHorizontal, Search,
   RefreshCw, Languages, Home as HomeIcon,
@@ -73,18 +73,6 @@ const LANGUAGES: Record<string, string> = {
   he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', ar: '🌙 ערבית', ru: '🇷🇺 רוסית', es: '🇪🇸 ספרדית',
   fr: '🇫🇷 צרפתית', am: '🇪🇹 אמהרית', yi: '✡️ יידיש', fa: '🇮🇷 פרסית', pt: '🇧🇷 פורטוגזית',
   de: '🇩🇪 גרמנית', it: '🇮🇹 איטלקית', buh: '🇺🇿 בוכרית', ka: '🇬🇪 גרוזינית',
-}
-
-function getAge(p: DbProfile): number | null {
-  if (p.birth_year) return new Date().getFullYear() - p.birth_year
-  if (p.date_of_birth) {
-    const b = new Date(p.date_of_birth)
-    let a = new Date().getFullYear() - b.getFullYear()
-    const m = new Date().getMonth() - b.getMonth()
-    if (m < 0 || (m === 0 && new Date().getDate() < b.getDate())) a--
-    return a
-  }
-  return null
 }
 
 // ─── Rotating themes — כל פרופיל מסודר/צבוע קצת אחר ──────────────────────────
@@ -169,7 +157,7 @@ function InlineMedia({ photo, name }: { photo: DbPhoto; name: string }) {
 }
 
 function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: DbPhoto[]; theme: Theme }) {
-  const age = getAge(profile)
+  const age = calcAgeFromProfile(profile)
   const oq = profile.open_questions ?? {}
   const media = photos.length ? photos : []
   const current = media[0]

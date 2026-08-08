@@ -14,6 +14,7 @@ import { Camera, X, Check, Save, Crop } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { detectFace, photoObjectPosition, type FaceCheckResult } from '@/lib/faceDetection'
+import { MIN_AGE, MIN_BIRTH_YEAR, maxBirthYear } from '@/lib/utils/age'
 import { PhotoCropDialog } from '@/components/profile/PhotoCropDialog'
 import type { DbPhoto } from '@/lib/types/database'
 
@@ -437,6 +438,13 @@ export default function EditProfilePage() {
       const updates: Record<string, unknown> = {}
 
       if (section === 'personal') {
+        if (form.birth_year) {
+          const year = Number(form.birth_year)
+          if (!Number.isInteger(year) || year < MIN_BIRTH_YEAR || year > maxBirthYear()) {
+            toast.error(`שנת לידה לא תקינה — יש להזין שנה בין ${MIN_BIRTH_YEAR} ל-${maxBirthYear()} (גיל ${MIN_AGE} ומעלה)`)
+            return
+          }
+        }
         Object.assign(updates, {
           first_name: form.first_name,
           last_name: form.last_name,
@@ -571,7 +579,7 @@ export default function EditProfilePage() {
                 <Input
                   type="number" value={form.birth_year}
                   onChange={e => set('birth_year', e.target.value)}
-                  placeholder="1990" min={1944} max={2006}
+                  placeholder="1990" min={MIN_BIRTH_YEAR} max={maxBirthYear()}
                   className="h-12 rounded-2xl border-[#E5E5E5] text-center text-xl font-bold" dir="ltr"
                 />
               </div>

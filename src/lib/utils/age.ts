@@ -1,3 +1,13 @@
+// גבולות גיל למערכת: מתחת ל-18 אסור להירשם, ומעל 100 זה כנראה נתון שגוי
+export const MIN_AGE = 18
+export const MAX_AGE = 100
+
+export const MIN_BIRTH_YEAR = 1944
+// שנת הלידה המאוחרת ביותר שעדיין נותנת גיל 18
+export function maxBirthYear(): number {
+  return new Date().getFullYear() - MIN_AGE
+}
+
 export function calcAge(dateOfBirth: string | null | undefined): number {
   if (!dateOfBirth) return 0
   const today = new Date()
@@ -8,11 +18,14 @@ export function calcAge(dateOfBirth: string | null | undefined): number {
   return age
 }
 
-// גיל מתוך פרופיל: השאלון שומר birth_year בלבד, ולכן date_of_birth הוא רק fallback
+// גיל מתוך פרופיל: השאלון שומר birth_year בלבד, ולכן date_of_birth הוא רק fallback.
+// גיל מחוץ לטווח הסביר (נתון שגוי בדאטהבייס) מוחזר כ-null כדי שלא יוצג.
 export function calcAgeFromProfile(p: { birth_year?: number | null; date_of_birth?: string | null }): number | null {
-  if (p.birth_year) return new Date().getFullYear() - p.birth_year
-  if (p.date_of_birth) return calcAge(p.date_of_birth)
-  return null
+  let age: number | null = null
+  if (p.birth_year) age = new Date().getFullYear() - p.birth_year
+  else if (p.date_of_birth) age = calcAge(p.date_of_birth)
+  if (age == null || age < MIN_AGE || age > MAX_AGE) return null
+  return age
 }
 
 export function formatLastSeen(lastSeen: string): string {

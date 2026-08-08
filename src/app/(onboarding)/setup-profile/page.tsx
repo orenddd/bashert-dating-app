@@ -11,6 +11,7 @@ import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, Clipbo
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { detectFace } from '@/lib/faceDetection'
+import { MIN_BIRTH_YEAR, maxBirthYear } from '@/lib/utils/age'
 import { PhotoCropDialog } from '@/components/profile/PhotoCropDialog'
 import { YearWheel } from '@/components/shared/YearWheel'
 import { NumberWheel } from '@/components/shared/NumberWheel'
@@ -491,7 +492,7 @@ export default function SetupProfilePage() {
   const canProceed = (): boolean => {
     switch (currentStep) {
       case 'name': return form.first_name.trim().length >= 2 && form.last_name.trim().length >= 2 && form.phone_number.replace(/[^0-9]/g, '').length >= 9
-      case 'birth_year': return !!form.birth_year && Number(form.birth_year) >= 1944 && Number(form.birth_year) <= 2006
+      case 'birth_year': return !!form.birth_year && Number(form.birth_year) >= MIN_BIRTH_YEAR && Number(form.birth_year) <= maxBirthYear()
       case 'gender': return !!form.gender
       case 'status': return !!form.marital_status
       case 'children_count': return form.children_count !== '' && Number(form.children_count) >= 0
@@ -979,8 +980,8 @@ export default function SetupProfilePage() {
             <StepHeader title="שנת לידה" subtitle="באיזו שנה נולדת?" />
             <YearWheel
               value={form.birth_year}
-              min={1944}
-              max={2006}
+              min={MIN_BIRTH_YEAR}
+              max={maxBirthYear()}
               onChange={v => set('birth_year', v)}
             />
             <p className="text-xs text-[#A3A3A3] mt-4 text-center">גלגל/י לשנה הנכונה — הגיל נגזר מהשנה בלבד</p>

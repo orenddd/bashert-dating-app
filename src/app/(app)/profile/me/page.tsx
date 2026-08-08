@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { fetchProfile } from '@/lib/api/profiles'
 import { createClient } from '@/lib/supabase/client'
-import { formatHeight } from '@/lib/utils/age'
+import { formatHeight, calcAgeFromProfile } from '@/lib/utils/age'
 import { photoObjectPosition } from '@/lib/faceDetection'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
@@ -27,11 +27,6 @@ const LANGUAGES: Record<string, string> = {
   es: '🇪🇸 ספרדית', fr: '🇫🇷 צרפתית', am: '🇪🇹 אמהרית', yi: '✡️ יידיש',
   fa: '🇮🇷 פרסית', pt: '🇧🇷 פורטוגזית', de: '🇩🇪 גרמנית', it: '🇮🇹 איטלקית',
   buh: '🇺🇿 בוכרית', ka: '🇬🇪 גרוזינית',
-}
-
-function calcAgeFromYear(birthYear: number | null): string {
-  if (!birthYear) return ''
-  return `${new Date().getFullYear() - birthYear}`
 }
 
 export default function MyProfilePage() {
@@ -81,7 +76,7 @@ export default function MyProfilePage() {
 
   const primaryPhoto = photos.find(p => p.is_primary) ?? photos[0]
   const photoUrl = primaryPhoto?.url ?? null
-  const age = calcAgeFromYear(profile?.birth_year ?? null)
+  const age = profile ? calcAgeFromProfile(profile) : null
 
   // Profile completion
   const completionFields = [
