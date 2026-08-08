@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 import { sendMessageRequest } from '@/lib/api/messages'
 import { Send, MapPin } from 'lucide-react'
-import { calcAge } from '@/lib/utils/age'
+import { calcAgeFromProfile } from '@/lib/utils/age'
 import { useAuth } from '@/components/shared/AuthProvider'
 
 interface Props {
@@ -30,7 +30,7 @@ export function SendMessageDialog({ open, onClose, profile, photos, onSent }: Pr
   const primaryPhoto = photos.find(p => p.is_primary) ?? photos[0]
   const photoUrl = primaryPhoto?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/80/80`
   const initials = `${profile.first_name[0]}${profile.last_name[0]}`
-  const age = calcAge(profile.date_of_birth)
+  const age = calcAgeFromProfile(profile)
 
   const handleSend = async () => {
     if (!message.trim() || !user) return
@@ -73,7 +73,7 @@ export function SendMessageDialog({ open, onClose, profile, photos, onSent }: Pr
             <AvatarFallback className="bg-[#171411] text-[#F2EDDF] font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-bold text-[#171411]">{profile.first_name}, {age}</p>
+            <p className="font-bold text-[#171411]">{profile.first_name}{age != null ? `, ${age}` : ''}</p>
             <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
               <MapPin className="w-3 h-3" />
               {profile.city}{profile.state ? `, ${profile.state}` : ''}

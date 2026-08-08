@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { useTranslation } from '@/lib/i18n'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBadges'
-import { calcAge } from '@/lib/utils/age'
+import { calcAgeFromProfile } from '@/lib/utils/age'
 import { MapPin, Shield, ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { photoObjectPosition } from '@/lib/faceDetection'
@@ -25,7 +25,7 @@ export function SwipeCard({ profile, photos, onLike, onPass, onSuperLike, isTop 
   const [dragX, setDragX] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const startX = useRef(0)
-  const age = calcAge(profile.date_of_birth)
+  const age = calcAgeFromProfile(profile)
   const photoUrl = photos[photoIdx]?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/600/800`
 
   // Mouse handlers
@@ -190,7 +190,7 @@ export function SwipeCard({ profile, photos, onLike, onPass, onSuperLike, isTop 
         <div className="flex items-end justify-between mb-2">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-3xl font-bold drop-shadow">{profile.first_name}, {age}</h2>
+              <h2 className="text-3xl font-bold drop-shadow">{profile.first_name}{age != null ? `, ${age}` : ''}</h2>
               {profile.is_verified && <Shield className="w-5 h-5 text-blue-300 fill-blue-300 flex-shrink-0" />}
             </div>
             <div className="flex items-center gap-1 text-white/80 text-sm mt-1">

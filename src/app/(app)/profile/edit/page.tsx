@@ -10,11 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Camera, X, Check, Save } from 'lucide-react'
+import { Camera, X, Check, Save, Crop } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { detectFace, photoObjectPosition, type FaceCheckResult } from '@/lib/faceDetection'
+import { PhotoCropDialog } from '@/components/profile/PhotoCropDialog'
 import type { DbPhoto } from '@/lib/types/database'
+
+// נתיב ייחודי ב-Storage לגרסה ערוכה של תמונה קיימת (מחוץ לקומפוננטה — נקרא רק בשמירה)
+const editedPhotoPath = (userId: string, photoId: string) =>
+  `${userId}/${Date.now()}-edit-${photoId.slice(0, 8)}.jpg`
 
 // ─── Helper Components ──────────────────────────────────────────────────────
 
@@ -212,6 +217,14 @@ export default function EditProfilePage() {
   // תוצאת זיהוי הפנים לכל קובץ חדש — אזהרה על תמונה בלי פנים ומוקד חיתוך לתצוגה
   const [faceChecks, setFaceChecks] = useState<Map<File, FaceCheckResult>>(new Map())
   const [photosToDelete, setPhotosToDelete] = useState<string[]>([])
+  // עריכת תמונה (זום/חיתוך/סיבוב) בדיאלוג — על תמונה חדשה או קיימת
+  const [editing, setEditing] = useState<
+    | { kind: 'new'; index: number; src: string }
+    | { kind: 'existing'; photo: DbPhoto }
+    | null
+  >(null)
+  // גרסאות ערוכות של תמונות קיימות — מועלות ומעדכנות את הרשומה רק בשמירה
+  const [editedExisting, setEditedExisting] = useState<Map<string, { file: File; preview: string; face: FaceCheckResult | null }>>(new Map())
   const [saving, setSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -304,6 +317,32 @@ export default function EditProfilePage() {
     setNewPhotos(prev => prev.filter((_, idx) => idx !== i))
   }
 
+  const closeEditor = () => {
+    if (editing?.kind === 'new') URL.revokeObjectURL(editing.src)
+    setEditing(null)
+  }
+
+  // החלת עריכה על תמונה חדשה שטרם הועלתה — הקובץ מוחלף בגרסה הערוכה
+  const applyEditedNew = (index: number, file: File) => {
+    closeEditor()
+    setNewPhotos(prev => prev.map((f, i) => (i === index ? file : f)))
+    void detectFace(file).then(res => setFaceChecks(prev => new Map(prev).set(file, res)))
+  }
+
+  // החלת עריכה על תמונה קיימת — נשמרת בצד ומועלית בלחיצה על "שמור שינויים"
+  const applyEditedExisting = (photo: DbPhoto, file: File) => {
+    closeEditor()
+    const prevEntry = editedExisting.get(photo.id)
+    if (prevEntry) URL.revokeObjectURL(prevEntry.preview)
+    const preview = URL.createObjectURL(file)
+    setEditedExisting(prev => new Map(prev).set(photo.id, { file, preview, face: null }))
+    void detectFace(file).then(res => setEditedExisting(prev => {
+      const cur = prev.get(photo.id)
+      // אם בינתיים נערכה שוב — לא דורסים את הקובץ החדש בתוצאה ישנה
+      return cur && cur.file === file ? new Map(prev).set(photo.id, { ...cur, face: res }) : prev
+    }))
+  }
+
   const saveSection = async (section: 'personal' | 'seeking' | 'lifestyle' | 'about' | 'photos') => {
     if (!user?.id) return
     if (section === 'photos') {
@@ -323,6 +362,26 @@ export default function EditProfilePage() {
         const supabase = createClient()
         if (photosToDelete.length > 0) {
           await supabase.from('photos').delete().in('id', photosToDelete)
+        }
+
+        // תמונות קיימות שנערכו (זום/חיתוך) — העלאת הגרסה הערוכה ועדכון הרשומה
+        for (const [id, edited] of editedExisting) {
+          if (photosToDelete.includes(id)) continue
+          const path = editedPhotoPath(user.id, id)
+          const { data: uploaded, error: upErr } = await supabase.storage
+            .from('profile-photos')
+            .upload(path, edited.file, { upsert: true })
+          if (upErr) { console.error(upErr); continue }
+          const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(uploaded.path)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: updErr } = await (supabase.from('photos') as any)
+            .update({ url: publicUrl, face_focus_x: edited.face?.focusX ?? null, face_focus_y: edited.face?.focusY ?? null })
+            .eq('id', id)
+          if (updErr && String(updErr.message).includes('face_focus')) {
+            // מיגרציית face_focus טרם רצה על ה-DB — נעדכן בלי מוקד הפנים
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase.from('photos') as any).update({ url: publicUrl }).eq('id', id)
+          }
         }
         if (newPhotos.length > 0) {
           const visibleExisting = existingPhotos.filter(p => !photosToDelete.includes(p.id))
@@ -364,6 +423,8 @@ export default function EditProfilePage() {
         if (refreshed) setExistingPhotos(refreshed.photos)
         setNewPhotos([])
         setPhotosToDelete([])
+        editedExisting.forEach(e => URL.revokeObjectURL(e.preview))
+        setEditedExisting(new Map())
         toast.success('תמונות עודכנו')
         return
       }
@@ -782,6 +843,8 @@ export default function EditProfilePage() {
                     { value: 'travel', label: '✈️ טיולים' },
                     { value: 'chill', label: '🌊 זורם עם החיים' },
                     { value: 'politics', label: '🗞️ פוליטיקה' },
+                    { value: 'kineret', label: '🏖️ חוף בטבריה' },
+                    { value: 'matkot', label: '🏓 מטקות בים' },
                   ]}
                   selected={form.hobbies}
                   onToggle={v => toggleMulti('hobbies', v)}
@@ -844,22 +907,44 @@ export default function EditProfilePage() {
 
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {/* Existing photos */}
-                {visibleExisting.map((photo, i) => (
-                  <div key={photo.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-[#E5E5E5]">
-                    <img src={photo.url} alt="" className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photo) }} />
-                    <button
-                      onClick={() => markDeleteExisting(photo.id)}
-                      className="absolute top-1 end-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    {i === 0 && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs text-center py-1">
-                        ראשית
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {visibleExisting.map((photo, i) => {
+                  const edited = editedExisting.get(photo.id)
+                  return (
+                    <div key={photo.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-[#E5E5E5]">
+                      <img
+                        src={edited?.preview ?? photo.url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        style={edited ? undefined : { objectPosition: photoObjectPosition(photo) }}
+                      />
+                      <button
+                        onClick={() => markDeleteExisting(photo.id)}
+                        className="absolute top-1 end-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      {photo.media_type === 'image' && (
+                        <button
+                          onClick={() => setEditing({ kind: 'existing', photo })}
+                          className="absolute top-1 start-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
+                          aria-label="עריכת תמונה"
+                        >
+                          <Crop className="w-3 h-3" />
+                        </button>
+                      )}
+                      {edited && (
+                        <div className="absolute bottom-6 left-0 right-0 bg-[#0A0A0A]/80 text-white text-[10px] text-center py-0.5 font-semibold">
+                          נערכה — תישמר בלחיצה על שמירה
+                        </div>
+                      )}
+                      {i === 0 && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs text-center py-1">
+                          ראשית
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
                 {/* New photos preview */}
                 {newPhotos.map((file, i) => (
@@ -871,6 +956,15 @@ export default function EditProfilePage() {
                     >
                       <X className="w-3 h-3" />
                     </button>
+                    {file.type.startsWith('image') && (
+                      <button
+                        onClick={() => setEditing({ kind: 'new', index: i, src: URL.createObjectURL(file) })}
+                        className="absolute top-1 start-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
+                        aria-label="עריכת תמונה"
+                      >
+                        <Crop className="w-3 h-3" />
+                      </button>
+                    )}
                     {faceChecks.get(file)?.status === 'no_face' && (
                       <div className="absolute bottom-6 left-0 right-0 bg-amber-500/95 text-white text-[10px] text-center py-1 font-semibold">
                         ⚠️ לא רואים פנים
@@ -917,6 +1011,18 @@ export default function EditProfilePage() {
                 </p>
               </div>
             </div>
+
+            {editing && (
+              <PhotoCropDialog
+                src={editing.kind === 'new'
+                  ? editing.src
+                  : editedExisting.get(editing.photo.id)?.preview ?? editing.photo.url}
+                onCancel={closeEditor}
+                onApply={file => editing.kind === 'new'
+                  ? applyEditedNew(editing.index, file)
+                  : applyEditedExisting(editing.photo, file)}
+              />
+            )}
             <SaveButton section="photos" />
           </TabsContent>
         </Tabs>

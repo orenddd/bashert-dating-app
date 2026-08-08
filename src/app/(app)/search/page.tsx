@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { useTranslation } from '@/lib/i18n'
 import { fetchDiscoverProfiles } from '@/lib/api/profiles'
-import { calcAge } from '@/lib/utils/age'
+import { calcAgeFromProfile } from '@/lib/utils/age'
 import { photoObjectPosition } from '@/lib/faceDetection'
 import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBadges'
 import { Button } from '@/components/ui/button'
@@ -213,7 +213,7 @@ export default function SearchPage() {
             {results.map(({ profile, photos }) => {
               const photo = photos.find(p => p.is_primary) ?? photos[0]
               const photoUrl = photo?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/400/500`
-              const age = calcAge(profile.date_of_birth)
+              const age = calcAgeFromProfile(profile)
 
               return (
                 <Link key={profile.id} href={`/profile/${profile.user_id}`}>
@@ -224,7 +224,7 @@ export default function SearchPage() {
                       {profile.is_online && <div className="absolute top-2 end-2 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />}
                       {profile.is_verified && <div className="absolute top-2 start-2"><Shield className="w-4 h-4 text-blue-400 fill-blue-400" /></div>}
                       <div className="absolute bottom-0 start-0 end-0 p-3 text-white">
-                        <p className="font-bold text-sm">{profile.first_name}, {age}</p>
+                        <p className="font-bold text-sm">{profile.first_name}{age != null ? `, ${age}` : ''}</p>
                         <div className="flex items-center gap-1 text-xs text-white/70">
                           <MapPin className="w-3 h-3" />{profile.city}
                         </div>

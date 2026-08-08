@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart, Loader2, RotateCcw, PartyPopper } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart, Loader2, RotateCcw, PartyPopper, Crop } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { detectFace } from '@/lib/faceDetection'
+import { PhotoCropDialog } from '@/components/profile/PhotoCropDialog'
 import { YearWheel } from '@/components/shared/YearWheel'
 import { NumberWheel } from '@/components/shared/NumberWheel'
 import { CityAutocomplete } from '@/components/shared/CityAutocomplete'
@@ -79,6 +80,9 @@ interface PhotoItem {
   focusX?: number // מרכז הפנים (0..1) — נשמר ל-DB לחיתוך תצוגה סביב הפנים
   focusY?: number
 }
+
+// מזהה ייחודי לפריט מדיה (מחוץ לקומפוננטה — נקרא רק מתוך event handlers)
+const newPhotoItemId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 // טיוטת התקדמות ב-localStorage — כל מה שהוזן נשמר גם בלי ליצור פרופיל,
 // ובכניסה הבאה ממשיכים מאותו שלב בדיוק
@@ -317,6 +321,8 @@ export default function SetupProfilePage() {
   const [hasDraft, setHasDraft] = useState(false)
   // המדיה מנוהלת בנפרד מהטופס: File לא ניתן לשמירה בטיוטה, וההעלאה רצה ברקע
   const [photos, setPhotos] = useState<PhotoItem[]>([])
+  // תמונה שנפתחה לעריכה (זום/חיתוך/סיבוב) בדיאלוג
+  const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null)
   // הבטחות העלאה שעדיין רצות — "צור פרופיל" ממתין רק למי שטרם הסתיימה
   const uploadTasksRef = useRef<Map<string, Promise<void>>>(new Map())
   // תוצאות העלאה לפי id, מתעדכן סינכרונית (state עלול לפגר אחרי await)
@@ -726,6 +732,35 @@ export default function SetupProfilePage() {
       // ניקוי הקובץ שכבר הועלה — best effort, לא חוסם את המשתמש
       void createClient().storage.from('profile-photos').remove([item.path])
     }
+  }
+
+  // החלת עריכה (זום/חיתוך/סיבוב): הפריט מוחלף בפריט חדש עם הקובץ הערוך,
+  // כדי שהעלאה ישנה שמסתיימת באיחור לא תדרוס את הגרסה הערוכה
+  const applyEditedPhoto = (item: PhotoItem, file: File) => {
+    setEditingPhotoId(null)
+    const newItem: PhotoItem = {
+      id: newPhotoItemId(),
+      previewUrl: URL.createObjectURL(file),
+      status: 'uploading',
+      mediaType: 'image',
+      faceCheck: 'checking',
+      file,
+    }
+    setPhotos(prev => prev.map(p => p.id === item.id ? newItem : p))
+    uploadItem(newItem, file)
+    void detectFace(file).then(res => {
+      setPhotos(prev => prev.map(p => p.id === newItem.id
+        ? { ...p, faceCheck: res.status, focusX: res.focusX, focusY: res.focusY }
+        : p))
+    })
+    // ניקוי הגרסה הקודמת — ממתינים לסיום ההעלאה שלה אם עדיין רצה (best effort)
+    const oldTask = uploadTasksRef.current.get(item.id)
+    void Promise.resolve(oldTask).then(() => {
+      const oldPath = uploadedMetaRef.current.get(item.id)?.path ?? item.path
+      uploadedMetaRef.current.delete(item.id)
+      if (item.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
+      if (oldPath) void createClient().storage.from('profile-photos').remove([oldPath])
+    })
   }
 
   // אחוז ההתקדמות בהעלאה (אם אין תמונות — מצב אינדטרמיננטי)
@@ -1252,6 +1287,15 @@ export default function SetupProfilePage() {
                   >
                     <X className="w-3 h-3" />
                   </button>
+                  {item.mediaType === 'image' && item.status !== 'error' && (
+                    <button
+                      onClick={() => setEditingPhotoId(item.id)}
+                      className="absolute top-1 start-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black"
+                      aria-label="עריכת תמונה"
+                    >
+                      <Crop className="w-3 h-3" />
+                    </button>
+                  )}
                   {item.faceCheck === 'no_face' && item.status !== 'error' && (
                     <div className={cn(
                       'absolute left-0 right-0 bg-amber-500/95 text-white text-[10px] text-center py-1 font-semibold',
@@ -1318,6 +1362,17 @@ export default function SetupProfilePage() {
                 </p>
               )}
             </div>
+
+            {(() => {
+              const editingItem = photos.find(p => p.id === editingPhotoId)
+              return editingItem ? (
+                <PhotoCropDialog
+                  src={editingItem.previewUrl}
+                  onCancel={() => setEditingPhotoId(null)}
+                  onApply={file => applyEditedPhoto(editingItem, file)}
+                />
+              ) : null
+            })()}
           </div>
         )}
 
@@ -1422,7 +1477,8 @@ export default function SetupProfilePage() {
                 { value: 'bbq', label: '🔥 על האש עם חברים ומשפחה' },
                 { value: 'chill', label: '🌊 אין לי תחביב מוגדר — זורם עם החיים' },
                 { value: 'politics', label: '🗞️ פוליטיקה, אקטואליה ולייעץ לטראמפ מה צריך לעשות…' },
-                { value: 'kineret', label: '🏖️ בחוף בטבריה, עומר אדם בפול ווליום, ערק עם אשכוליות ולקנח עם כיסאות כתר פלסטיק באוויר - אילון של מטקות' },
+                { value: 'kineret', label: '🏖️ בחוף בטבריה, עומר אדם בפול ווליום, ערק עם אשכוליות ולקנח עם כיסאות כתר פלסטיק באוויר' },
+                { value: 'matkot', label: gSelf('🏓 אלוף של מטקות בים', '🏓 אלופה של מטקות בים') },
               ]}
               selected={form.hobbies.split(',').filter(Boolean)}
               onToggle={v => {

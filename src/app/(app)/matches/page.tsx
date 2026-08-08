@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { useTranslation } from '@/lib/i18n'
 import { fetchLikesReceived, fetchLikesSent, sendLike } from '@/lib/api/likes'
-import { calcAge } from '@/lib/utils/age'
+import { calcAgeFromProfile } from '@/lib/utils/age'
 import { photoObjectPosition } from '@/lib/faceDetection'
 import { Shield, MessageCircle, Heart, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -44,7 +44,7 @@ export default function LikesPage() {
   const renderReceivedCard = ({ like, profile, photos }: { like: DbLike; profile: DbProfile; photos: DbPhoto[] }) => {
     const photo = photos.find(p => p.is_primary) ?? photos[0]
     const photoUrl = photo?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/400/500`
-    const age = calcAge(profile.date_of_birth)
+    const age = calcAgeFromProfile(profile)
     const hasLikedBack = likedBack.has(profile.user_id)
 
     return (
@@ -67,7 +67,7 @@ export default function LikesPage() {
             </div>
           )}
           <Link href={`/profile/${profile.user_id}`} className="absolute bottom-0 start-0 end-0 p-3 text-white">
-            <p className="font-serif font-bold text-lg leading-tight">{profile.first_name}, {age}</p>
+            <p className="font-serif font-bold text-lg leading-tight">{profile.first_name}{age != null ? `, ${age}` : ''}</p>
             <p className="text-xs text-white/70 mt-0.5">{profile.city}</p>
           </Link>
         </div>
@@ -113,7 +113,7 @@ export default function LikesPage() {
   const renderSentCard = ({ like, profile, photos }: { like: DbLike; profile: DbProfile; photos: DbPhoto[] }) => {
     const photo = photos.find(p => p.is_primary) ?? photos[0]
     const photoUrl = photo?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/400/500`
-    const age = calcAge(profile.date_of_birth)
+    const age = calcAgeFromProfile(profile)
 
     return (
       <Link key={like.id} href={`/profile/${profile.user_id}`}>
@@ -128,7 +128,7 @@ export default function LikesPage() {
               </div>
             )}
             <div className="absolute bottom-0 start-0 end-0 p-3 text-white">
-              <p className="font-serif font-bold text-lg leading-tight">{profile.first_name}, {age}</p>
+              <p className="font-serif font-bold text-lg leading-tight">{profile.first_name}{age != null ? `, ${age}` : ''}</p>
               <p className="text-xs text-white/70 mt-0.5">{profile.city}</p>
             </div>
           </div>

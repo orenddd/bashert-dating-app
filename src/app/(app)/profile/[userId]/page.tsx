@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge'
 import { useTranslation } from '@/lib/i18n'
 import { fetchProfile, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
 import { sendLike, removeLike, isLiked } from '@/lib/api/likes'
-import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBadges'
 import { SendMessageDialog } from '@/components/profile/SendMessageDialog'
-import { calcAge, formatHeight } from '@/lib/utils/age'
+import { StickyNameBar } from '@/components/profile/StickyNameBar'
+import { calcAgeFromProfile, formatHeight } from '@/lib/utils/age'
 import {
   Shield, MapPin, Heart, Star, MessageCircle,
-  ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
+  ArrowLeft, ArrowRight,
   Languages, Home, Sparkles, CalendarHeart, Sun,
   CheckCircle2, X, Trash2, ShieldCheck
 } from 'lucide-react'
@@ -58,6 +58,21 @@ const MARITAL_STATUS: Record<string, string> = {
   widowed: 'אלמן/ה',
 }
 
+const SEEKING_STATUS: Record<string, string> = {
+  single: 'רווק/ה',
+  divorced: 'גרוש/ה',
+  widowed: 'אלמן/ה',
+}
+
+const SEEKING_WITH_KIDS: Record<string, string> = {
+  yes: '✅ עם ילדים — בסדר גמור',
+  no: '🚫 עדיף ללא ילדים',
+  dont_mind: '💛 ילדים מקשר קודם — לא משנה לי',
+}
+
+// ערך-דגל ל"ללא הגבלת מרחק" (ראו setup-profile)
+const DISTANCE_NO_LIMIT = 99999
+
 const RELIGIOUS_LEVEL: Record<string, string> = {
   hiloni: '☀️ חילוני',
   hiloni_heart: '💙 יהודי בלב',
@@ -91,6 +106,14 @@ const SATURDAY_MORNING: Record<string, string> = {
   sleep_late: '😴 נוחר עד 12:00',
 }
 
+const HOBBY_LABELS: Record<string, string> = {
+  soccer: '⚽ כדורגל', sport: '🏃 ספורט', torah: '📜 תורה', cooking: '👨‍🍳 בישול',
+  nightlife: '🍽️ חיי לילה', series: '📺 סדרות', music: '🎵 מוסיקה', reading: '📚 קריאה',
+  tech: '💻 טכנולוגיה', art: '🎨 אמנות', meditation: '🧘 מדיטציה', bbq: '🔥 על האש',
+  travel: '✈️ טיולים', chill: '🌊 זורם', politics: '🗞️ פוליטיקה',
+  kineret: '🏖️ חוף בטבריה', matkot: '🏓 מטקות בים',
+}
+
 const LANGUAGES: Record<string, string> = {
   he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', ar: '🌙 ערבית', ru: '🇷🇺 רוסית',
   es: '🇪🇸 ספרדית', fr: '🇫🇷 צרפתית', am: '🇪🇹 אמהרית', yi: '✡️ יידיש',
@@ -119,6 +142,24 @@ function ChipRow({ values, map }: { values: string[]; map: Record<string, string
           {label}
         </span>
       ))}
+    </div>
+  )
+}
+
+// מדיה משובצת בין סקשנים בגוף הפרופיל
+function InlinePhoto({ photo, name }: { photo: DbPhoto; name: string }) {
+  return (
+    <div className="rounded-2xl overflow-hidden bg-[#EBE4D2] aspect-[4/3]">
+      {photo.media_type === 'video' ? (
+        <video src={photo.url} controls playsInline className="w-full h-full object-cover bg-black" />
+      ) : photo.media_type === 'audio' ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6">
+          <span className="text-5xl">🎙️</span>
+          <audio src={photo.url} controls className="w-full max-w-xs" />
+        </div>
+      ) : (
+        <img src={photo.url} alt={name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photo) }} />
+      )}
     </div>
   )
 }
@@ -154,11 +195,13 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<DbProfile | null>(null)
   const [photos, setPhotos] = useState<DbPhoto[]>([])
   const [loading, setLoading] = useState(true)
-  const [photoIdx, setPhotoIdx] = useState(0)
   const [liked, setLiked] = useState(false)
   const [superLiked, setSuperLiked] = useState(false)
   const [messagingOpen, setMessagingOpen] = useState(false)
   const [adminBusy, setAdminBusy] = useState(false)
+  // סרגל פעולות דביק — מופיע כשגוללים מעבר לשורת הכפתורים המקורית
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const [showSticky, setShowSticky] = useState(false)
 
   const BackArrow = isRTL ? ArrowRight : ArrowLeft
 
@@ -176,6 +219,17 @@ export default function ProfilePage() {
     if (!user || !userId) return
     isLiked(user.id, userId).then(setLiked)
   }, [user, userId])
+
+  useEffect(() => {
+    const el = actionsRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowSticky(!entry.isIntersecting && entry.boundingClientRect.top < 0),
+      { threshold: 0 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [loading, profile])
 
   if (loading) {
     return (
@@ -200,9 +254,10 @@ export default function ProfilePage() {
     )
   }
 
-  const age = calcAge(profile.date_of_birth)
-  const photoUrl = photos[photoIdx]?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/600/800`
+  const age = calcAgeFromProfile(profile)
+  const photoUrl = photos[0]?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/600/800`
   const oq = profile.open_questions ?? {}
+  const restPhotos = photos.slice(1)
 
   const handleLike = async () => {
     if (!user) return
@@ -251,8 +306,39 @@ export default function ProfilePage() {
     toast('⭐ סופר לייק נשלח!', { description: `${profile.first_name} יקבל/תקבל התראה מיוחדת`, duration: 3000 })
   }
 
+  const actionButtons = (
+    <>
+      <Button
+        className={cn('flex-1 h-12 rounded-2xl font-bold transition-all',
+          liked ? 'bg-[#B8472A] text-white hover:bg-[#7A2E18]'
+            : 'bg-[#EBE4D2] text-[rgba(23,20,17,0.65)] hover:bg-[#B8472A] hover:text-white'
+        )}
+        onClick={handleLike}
+      >
+        <Heart className={cn('w-4 h-4 me-2', liked && 'fill-white')} />
+        {liked ? '❤️ לייקת!' : t.common.like}
+      </Button>
+      <Button
+        className="flex-1 h-12 bg-[#171411] hover:bg-[#2A2520] text-[#F2EDDF] rounded-2xl font-bold"
+        onClick={() => setMessagingOpen(true)}
+      >
+        <MessageCircle className="w-4 h-4 me-2" />
+        {t.common.message}
+      </Button>
+      <Button
+        variant="outline"
+        className={cn('w-12 h-12 rounded-2xl p-0 transition-all border-[rgba(23,20,17,0.15)]',
+          superLiked ? 'bg-[#171411] text-[#F2EDDF] border-[#171411]' : 'text-[rgba(23,20,17,0.55)] hover:bg-[rgba(23,20,17,0.06)]'
+        )}
+        onClick={handleSuperLike} title={t.common.super_like}
+      >
+        <Star className={cn('w-5 h-5', superLiked ? 'fill-[#F2EDDF]' : '')} />
+      </Button>
+    </>
+  )
+
   return (
-    <div className="max-w-2xl mx-auto pb-20 md:pb-6">
+    <div className={cn('max-w-2xl mx-auto pb-20', showSticky ? 'md:pb-28' : 'md:pb-6')}>
       {/* Back button */}
       <div className="p-4 pt-3">
         <Button variant="ghost" asChild size="sm" className="rounded-2xl text-gray-600 hover:text-[#171411]">
@@ -302,30 +388,9 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Photo gallery */}
+      {/* Photo header — התמונה הראשונה; השאר מפוזרות בגוף הפרופיל */}
       <div className="relative h-[420px] md:h-[520px] mx-4 rounded-3xl overflow-hidden bg-[#EBE4D2]">
-        <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photos[photoIdx]) }} />
-
-        {photos.length > 1 && (
-          <div className="absolute top-4 start-4 end-4 flex gap-1">
-            {photos.map((_, i) => (
-              <button key={i} onClick={() => setPhotoIdx(i)}
-                className={cn('h-[3px] flex-1 rounded-full transition-all', i === photoIdx ? 'bg-white' : 'bg-white/40')} />
-            ))}
-          </div>
-        )}
-        {photos.length > 1 && photoIdx > 0 && (
-          <button onClick={() => setPhotoIdx(i => i - 1)}
-            className="absolute start-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/50">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-        {photos.length > 1 && photoIdx < photos.length - 1 && (
-          <button onClick={() => setPhotoIdx(i => i + 1)}
-            className="absolute end-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/50">
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        )}
+        <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photos[0]) }} />
 
         <div className="absolute bottom-4 start-4 end-4 flex items-end justify-between">
           <div className="flex flex-col gap-2">
@@ -353,11 +418,17 @@ export default function ProfilePage() {
       <div className="px-5 pt-5 space-y-5">
         {/* Name & basic info */}
         <div>
+          <StickyNameBar
+            name={`${profile.first_name} ${profile.last_name[0]}.`}
+            age={age}
+            verified={profile.is_verified}
+            photo={photos.find(p => p.media_type === 'image') ?? null}
+          />
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-serif text-3xl font-black text-[#171411] tracking-tight">
               {profile.first_name} {profile.last_name[0]}.
             </h1>
-            <span className="text-2xl font-light text-[rgba(23,20,17,0.40)]">{age}</span>
+            {age != null && <span className="text-2xl font-light text-[rgba(23,20,17,0.40)]">{age}</span>}
             {profile.is_verified && <Shield className="w-5 h-5 text-blue-400 fill-blue-400" />}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
@@ -382,47 +453,57 @@ export default function ProfilePage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3">
-          <Button
-            className={cn('flex-1 rounded-2xl font-bold transition-all',
-              liked ? 'bg-[#B8472A] text-white hover:bg-[#7A2E18]'
-                : 'bg-[#EBE4D2] text-[rgba(23,20,17,0.65)] hover:bg-[#B8472A] hover:text-white'
-            )}
-            onClick={handleLike}
-          >
-            <Heart className={cn('w-4 h-4 me-2', liked && 'fill-white')} />
-            {liked ? '❤️ לייקת!' : t.common.like}
-          </Button>
-          <Button
-            className="flex-1 bg-[#171411] hover:bg-[#2A2520] text-[#F2EDDF] rounded-2xl font-bold"
-            onClick={() => setMessagingOpen(true)}
-          >
-            <MessageCircle className="w-4 h-4 me-2" />
-            {t.common.message}
-          </Button>
-          <Button
-            variant="outline"
-            className={cn('w-12 h-12 rounded-2xl p-0 transition-all border-[rgba(23,20,17,0.15)]',
-              superLiked ? 'bg-[#171411] text-[#F2EDDF] border-[#171411]' : 'text-[rgba(23,20,17,0.55)] hover:bg-[rgba(23,20,17,0.06)]'
-            )}
-            onClick={handleSuperLike} title={t.common.super_like}
-          >
-            <Star className={cn('w-5 h-5', superLiked ? 'fill-[#F2EDDF]' : '')} />
-          </Button>
+        <div ref={actionsRef} className="flex gap-3">
+          {actionButtons}
         </div>
 
-        {/* Relationship goals */}
-        {profile.relationship_goal?.length > 0 && (
+        {/* Relationship goals + partner preferences */}
+        {(profile.relationship_goal?.length > 0 || profile.children_future ||
+          profile.seeking_status?.length > 0 || profile.seeking_with_kids ||
+          (profile.age_pref_min > 0 && profile.age_pref_max > 0)) && (
           <div>
             <SectionTitle icon={CalendarHeart}>מחפש/ת</SectionTitle>
-            <ChipRow values={profile.relationship_goal} map={RELATIONSHIP_GOAL} />
-            {profile.children_future && (
-              <div className="mt-2">
-                <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
-                  {CHILDREN_FUTURE[profile.children_future]}
-                </span>
-              </div>
-            )}
+            <div className="space-y-3">
+              {profile.relationship_goal?.length > 0 && (
+                <ChipRow values={profile.relationship_goal} map={RELATIONSHIP_GOAL} />
+              )}
+              {profile.children_future && (
+                <div>
+                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">ילדים בעתיד</p>
+                  <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium inline-block">
+                    {CHILDREN_FUTURE[profile.children_future]}
+                  </span>
+                </div>
+              )}
+              {(profile.seeking_status?.length > 0 || profile.seeking_with_kids ||
+                (profile.age_pref_min > 0 && profile.age_pref_max > 0)) && (
+                <div>
+                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">ההעדפות שלי לבן/בת הזוג</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(profile.seeking_status ?? []).map(s => SEEKING_STATUS[s]).filter(Boolean).map(label => (
+                      <span key={label} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
+                        {label}
+                      </span>
+                    ))}
+                    {profile.seeking_with_kids && SEEKING_WITH_KIDS[profile.seeking_with_kids] && (
+                      <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
+                        {SEEKING_WITH_KIDS[profile.seeking_with_kids]}
+                      </span>
+                    )}
+                    {profile.age_pref_min > 0 && profile.age_pref_max > 0 && (
+                      <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
+                        🎂 גילאי {profile.age_pref_min}–{profile.age_pref_max}
+                      </span>
+                    )}
+                    {profile.distance_pref_km > 0 && (
+                      <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
+                        {profile.distance_pref_km >= DISTANCE_NO_LIMIT ? '🌍 מכל העולם' : `📍 עד ${profile.distance_pref_km} ק"מ ממני`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -443,13 +524,14 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {restPhotos[0] && <InlinePhoto photo={restPhotos[0]} name={profile.first_name} />}
+
         {/* Jewish attributes */}
         <div className="bg-[#EBE4D2] rounded-2xl p-4 border border-[rgba(23,20,17,0.06)]">
           <SectionTitle>{t.religious.level_label}</SectionTitle>
           {profile.religious_level && (
-            <p className="text-sm font-medium text-[#171411] mb-2">{RELIGIOUS_LEVEL[profile.religious_level]}</p>
+            <p className="text-sm font-medium text-[#171411]">{RELIGIOUS_LEVEL[profile.religious_level] ?? profile.religious_level}</p>
           )}
-          <JewishAttributesBadges profile={profile} />
         </div>
 
         {/* Lifestyle: friday / saturday / romantic */}
@@ -479,13 +561,15 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {restPhotos[1] && <InlinePhoto photo={restPhotos[1]} name={profile.first_name} />}
+
         {/* Hobbies */}
         {profile.hobbies?.length > 0 && (
           <div>
             <SectionTitle icon={Sparkles}>תחביבים</SectionTitle>
             <div className="flex flex-wrap gap-2">
               {profile.hobbies.map(h => (
-                <span key={h} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">{h}</span>
+                <span key={h} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">{HOBBY_LABELS[h] ?? h}</span>
               ))}
             </div>
           </div>
@@ -508,6 +592,8 @@ export default function ProfilePage() {
             )}
           </div>
         )}
+
+        {restPhotos[2] && <InlinePhoto photo={restPhotos[2]} name={profile.first_name} />}
 
         {/* More open questions */}
         {(oq.quote || oq.loves || oq.strength || oq.future_self || oq.future_us) && (
@@ -535,6 +621,20 @@ export default function ProfilePage() {
             <OpenQuestion label="אוכל שאני יכול/ה לאכול כל יום" value={oq.food} />
           </div>
         )}
+
+        {restPhotos.slice(3).map(p => <InlinePhoto key={p.id} photo={p} name={profile.first_name} />)}
+      </div>
+
+      {/* Sticky action bar — נגלה אחרי שגוללים מעבר לכפתורים המקוריים */}
+      <div className={cn(
+        'fixed bottom-[70px] md:bottom-0 left-0 right-0 md:ms-64 z-30',
+        'bg-white/95 backdrop-blur-sm border-t border-[#E5E5E5] px-4 py-2.5 md:pb-[max(0.625rem,env(safe-area-inset-bottom))]',
+        'transition-all duration-300',
+        showSticky ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'
+      )}>
+        <div className="max-w-2xl mx-auto flex gap-3">
+          {actionButtons}
+        </div>
       </div>
 
       <SendMessageDialog

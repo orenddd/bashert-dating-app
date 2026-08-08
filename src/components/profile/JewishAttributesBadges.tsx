@@ -13,31 +13,12 @@ interface Props {
 export function JewishAttributesBadges({ profile, compact }: Props) {
   const { t } = useTranslation()
 
+  // מציגים רק שדות שנאספים בפועל בשאלון (רקע קהילתי, רמת עברית ותוכניות עלייה אינם נשאלים)
   const badges = [
     {
       label: t.religious[profile.religious_level],
       color: 'bg-blue-100 text-blue-700',
       show: true,
-    },
-    {
-      label: profile.shomer_shabbat ? t.religious.shomer_shabbat : null,
-      color: 'bg-purple-100 text-purple-700',
-      show: profile.shomer_shabbat,
-    },
-    {
-      label: t.community[profile.community_background],
-      color: 'bg-amber-100 text-amber-700',
-      show: true,
-    },
-    {
-      label: profile.hebrew_fluency !== 'none' ? t.community[`hebrew_${profile.hebrew_fluency}` as keyof typeof t.community] : null,
-      color: 'bg-green-100 text-green-700',
-      show: profile.hebrew_fluency !== 'none',
-    },
-    {
-      label: profile.aliyah_plan !== 'no' ? t.community[`aliyah_${profile.aliyah_plan === 'already_made' ? 'done' : profile.aliyah_plan}` as keyof typeof t.community] : null,
-      color: 'bg-rose-100 text-rose-700',
-      show: profile.aliyah_plan !== 'no',
     },
   ].filter(b => b.show && b.label)
 

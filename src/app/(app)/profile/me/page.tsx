@@ -14,6 +14,21 @@ import { Badge } from '@/components/ui/badge'
 import { Shield, Settings, Camera, Crown, Eye, Heart, ExternalLink, MapPin } from 'lucide-react'
 import Link from 'next/link'
 
+const HOBBY_LABELS: Record<string, string> = {
+  soccer: '⚽ כדורגל', sport: '🏃 ספורט', torah: '📜 תורה', cooking: '👨‍🍳 בישול',
+  nightlife: '🍽️ חיי לילה', series: '📺 סדרות', music: '🎵 מוסיקה', reading: '📚 קריאה',
+  tech: '💻 טכנולוגיה', art: '🎨 אמנות', meditation: '🧘 מדיטציה', bbq: '🔥 על האש',
+  travel: '✈️ טיולים', chill: '🌊 זורם', politics: '🗞️ פוליטיקה',
+  kineret: '🏖️ חוף בטבריה', matkot: '🏓 מטקות בים',
+}
+
+const LANGUAGES: Record<string, string> = {
+  he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', ar: '🌙 ערבית', ru: '🇷🇺 רוסית',
+  es: '🇪🇸 ספרדית', fr: '🇫🇷 צרפתית', am: '🇪🇹 אמהרית', yi: '✡️ יידיש',
+  fa: '🇮🇷 פרסית', pt: '🇧🇷 פורטוגזית', de: '🇩🇪 גרמנית', it: '🇮🇹 איטלקית',
+  buh: '🇺🇿 בוכרית', ka: '🇬🇪 גרוזינית',
+}
+
 function calcAgeFromYear(birthYear: number | null): string {
   if (!birthYear) return ''
   return `${new Date().getFullYear() - birthYear}`
@@ -166,15 +181,8 @@ export default function MyProfilePage() {
               </Button>
             </div>
 
-            {/* Subscription */}
-            {profile.subscription_tier === 'free' ? (
-              <Button asChild size="sm" variant="outline" className="gap-1.5 border-[#E5E5E5] text-[#0A0A0A] rounded-full hover:bg-[#F5F5F5]">
-                <Link href="/settings">
-                  <Crown className="w-3.5 h-3.5" />
-                  שדרג למנוי
-                </Link>
-              </Button>
-            ) : (
+            {/* Subscription — כפתור שדרוג מוסתר זמנית */}
+            {profile.subscription_tier === 'free' ? null : (
               <Badge className="bg-[#0A0A0A] text-white border-0">
                 <Crown className="w-3 h-3 me-1" />
                 {profile.subscription_tier === 'platinum' ? t.subscription.platinum_name : t.subscription.gold_name}
@@ -256,7 +264,7 @@ export default function MyProfilePage() {
                 <h3 className="font-bold text-[#0A0A0A] mb-2 text-sm">שפות</h3>
                 <div className="flex flex-wrap gap-2">
                   {profile.languages.map(lang => (
-                    <span key={lang} className="bg-[#F5F5F5] text-[#0A0A0A] text-xs px-3 py-1 rounded-full">{lang}</span>
+                    <span key={lang} className="bg-[#F5F5F5] text-[#0A0A0A] text-xs px-3 py-1 rounded-full">{LANGUAGES[lang] ?? lang}</span>
                   ))}
                 </div>
               </div>
@@ -266,7 +274,7 @@ export default function MyProfilePage() {
                 <h3 className="font-bold text-[#0A0A0A] mb-2 text-sm">תחביבים</h3>
                 <div className="flex flex-wrap gap-2">
                   {profile.hobbies.map(h => (
-                    <span key={h} className="bg-[#F5F5F5] text-[#0A0A0A] text-xs px-3 py-1 rounded-full">{h}</span>
+                    <span key={h} className="bg-[#F5F5F5] text-[#0A0A0A] text-xs px-3 py-1 rounded-full">{HOBBY_LABELS[h] ?? h}</span>
                   ))}
                 </div>
               </div>

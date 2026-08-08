@@ -8,6 +8,13 @@ export function calcAge(dateOfBirth: string | null | undefined): number {
   return age
 }
 
+// גיל מתוך פרופיל: השאלון שומר birth_year בלבד, ולכן date_of_birth הוא רק fallback
+export function calcAgeFromProfile(p: { birth_year?: number | null; date_of_birth?: string | null }): number | null {
+  if (p.birth_year) return new Date().getFullYear() - p.birth_year
+  if (p.date_of_birth) return calcAge(p.date_of_birth)
+  return null
+}
+
 export function formatLastSeen(lastSeen: string): string {
   const diff = Date.now() - new Date(lastSeen).getTime()
   const mins = Math.floor(diff / 60000)

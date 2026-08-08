@@ -7,11 +7,11 @@ import { photoObjectPosition } from '@/lib/faceDetection'
 import { sendLike, isLiked } from '@/lib/api/likes'
 import { fetchSentRequestsMap, type SentStatusMap } from '@/lib/api/messages'
 import { SendMessageDialog } from '@/components/profile/SendMessageDialog'
-import { JewishAttributesBadges } from '@/components/profile/JewishAttributesBadges'
+import { StickyNameBar } from '@/components/profile/StickyNameBar'
 import { formatHeight } from '@/lib/utils/age'
 import {
   Shield, MapPin, Heart, MessageCircle, X, SlidersHorizontal, Search,
-  ChevronLeft, ChevronRight, RefreshCw, Languages, Home as HomeIcon,
+  RefreshCw, Languages, Home as HomeIcon,
   CalendarHeart, Sun, Sparkles, PartyPopper, Clock, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -66,7 +66,8 @@ const HOBBY_LABELS: Record<string, string> = {
   nightlife: '🍽️ חיי לילה', series: '📺 סדרות', music: '🎵 מוסיקה', reading: '📚 קריאה',
   tech: '💻 טכנולוגיה', art: '🎨 אמנות', meditation: '🧘 מדיטציה', bbq: '🔥 על האש',
   travel: '✈️ טיולים', chill: '🌊 זורם', politics: '🗞️ פוליטיקה',
-  kineret: '🏖️ חוף בטבריה ומטקות',
+  kineret: '🏖️ חוף בטבריה',
+  matkot: '🏓 מטקות בים',
 }
 const LANGUAGES: Record<string, string> = {
   he: '🇮🇱 עברית', en: '🇺🇸 אנגלית', ar: '🌙 ערבית', ru: '🇷🇺 רוסית', es: '🇪🇸 ספרדית',
@@ -158,14 +159,22 @@ function Media({ photo, name, className }: { photo?: DbPhoto; name: string; clas
 
 // ─── Full one-at-a-time profile ────────────────────────────────────────────────
 
-function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: DbPhoto[]; theme: Theme }) {
-  const [photoIdx, setPhotoIdx] = useState(0)
-  useEffect(() => { setPhotoIdx(0) }, [profile.user_id])
+// תמונה משובצת בין סקשנים בגוף הפרופיל
+function InlineMedia({ photo, name }: { photo: DbPhoto; name: string }) {
+  return (
+    <div className="rounded-2xl overflow-hidden bg-[#EBE4D2] aspect-[4/3]">
+      <Media photo={photo} name={name} />
+    </div>
+  )
+}
 
+function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: DbPhoto[]; theme: Theme }) {
   const age = getAge(profile)
   const oq = profile.open_questions ?? {}
   const media = photos.length ? photos : []
-  const current = media[photoIdx]
+  const current = media[0]
+  // התמונות הנוספות מפוזרות לאורך הפרופיל במקום קרוסלה אחת למעלה
+  const rest = media.slice(1)
 
   const NameBlock = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -198,28 +207,6 @@ function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: D
 
           {theme.header !== 'below' && (
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
-          )}
-
-          {/* progress dots */}
-          {media.length > 1 && (
-            <div className="absolute top-3 start-4 end-4 flex gap-1">
-              {media.map((_, i) => (
-                <button key={i} onClick={() => setPhotoIdx(i)}
-                  className={cn('h-[3px] flex-1 rounded-full transition-all', i === photoIdx ? 'bg-white' : 'bg-white/40')} />
-              ))}
-            </div>
-          )}
-          {media.length > 1 && photoIdx > 0 && (
-            <button onClick={() => setPhotoIdx(i => i - 1)}
-              className="absolute start-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          )}
-          {media.length > 1 && photoIdx < media.length - 1 && (
-            <button onClick={() => setPhotoIdx(i => i + 1)}
-              className="absolute end-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white">
-              <ChevronRight className="w-5 h-5" />
-            </button>
           )}
 
           {/* badges */}
@@ -257,6 +244,14 @@ function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: D
         )}
       </div>
 
+      {/* שם דביק — נשלף בראש המסך כשגוללים מעבר לשם */}
+      <StickyNameBar
+        name={`${profile.first_name}${profile.last_name ? ` ${profile.last_name[0]}.` : ''}`}
+        age={age}
+        verified={profile.is_verified}
+        photo={media.find(p => p.media_type === 'image') ?? null}
+      />
+
       {/* Body */}
       <div className="px-5 pb-6 space-y-5 pt-5">
         {theme.header === 'below' && <div>{NameBlock}{MetaRow}</div>}
@@ -293,13 +288,14 @@ function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: D
           </div>
         )}
 
+        {rest[0] && <InlineMedia photo={rest[0]} name={profile.first_name} />}
+
         {/* jewish attributes */}
         <div className="rounded-2xl p-4 border" style={{ background: theme.soft, borderColor: 'rgba(0,0,0,0.05)' }}>
           <SectionTitle>רמת דתיות</SectionTitle>
           {profile.religious_level && (
-            <p className="text-sm font-medium text-[#171411] mb-2">{RELIGIOUS_LEVEL[profile.religious_level] ?? profile.religious_level}</p>
+            <p className="text-sm font-medium text-[#171411]">{RELIGIOUS_LEVEL[profile.religious_level] ?? profile.religious_level}</p>
           )}
-          <JewishAttributesBadges profile={profile} />
         </div>
 
         {/* lifestyle */}
@@ -320,6 +316,8 @@ function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: D
           </div>
         )}
 
+        {rest[1] && <InlineMedia photo={rest[1]} name={profile.first_name} />}
+
         {/* hobbies */}
         {profile.hobbies?.length > 0 && (
           <div>
@@ -339,6 +337,8 @@ function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: D
             )}
           </div>
         )}
+
+        {rest[2] && <InlineMedia photo={rest[2]} name={profile.first_name} />}
 
         {/* more open qs */}
         {(oq.quote || oq.loves || oq.strength || oq.future_self || oq.future_us) && (
@@ -366,6 +366,8 @@ function FullProfile({ profile, photos, theme }: { profile: DbProfile; photos: D
             <OpenQuestion label="אוכל שאני יכול/ה לאכול כל יום" value={oq.food} theme={theme} />
           </div>
         )}
+
+        {rest.slice(3).map(p => <InlineMedia key={p.id} photo={p} name={profile.first_name} />)}
 
         <Link href={`/profile/${profile.user_id}`}
           className="block text-center text-xs text-[#A3A3A3] hover:text-[#171411] transition-colors pt-1">
