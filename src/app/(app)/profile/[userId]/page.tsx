@@ -221,14 +221,18 @@ export default function ProfilePage() {
   }, [user, userId])
 
   useEffect(() => {
-    const el = actionsRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => setShowSticky(!entry.isIntersecting && entry.boundingClientRect.top < 0),
-      { threshold: 0 }
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
+    const onScroll = () => {
+      const el = actionsRef.current
+      if (!el) return
+      setShowSticky(el.getBoundingClientRect().bottom < 0)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
   }, [loading, profile])
 
   if (loading) {
