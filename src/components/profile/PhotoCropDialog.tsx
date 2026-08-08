@@ -186,7 +186,7 @@ export function PhotoCropDialog({ src, onCancel, onApply }: PhotoCropDialogProps
   const disabled = !imgSize || !frame || exporting
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-6" dir="rtl">
+    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-6 select-none" dir="rtl">
       <div className="w-full max-w-sm flex flex-col items-center gap-5">
         <div className="text-center">
           <h2 className="text-white text-lg font-bold">עריכת תמונה</h2>
