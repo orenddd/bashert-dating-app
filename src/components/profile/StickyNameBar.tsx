@@ -54,7 +54,7 @@ export function StickyNameBar({
               />
             )}
             <span className="font-serif text-lg font-black text-[#171411] tracking-tight truncate">{name}</span>
-            {age != null && <span className="text-base font-light text-[rgba(23,20,17,0.40)]">{age}</span>}
+            {age != null && <span className="text-base font-light text-[#171411]">{age}</span>}
             {verified && <Shield className="w-4 h-4 text-blue-400 fill-blue-400 shrink-0" />}
           </div>
         </div>

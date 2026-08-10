@@ -126,7 +126,7 @@ const LANGUAGES: Record<string, string> = {
 function SectionTitle({ icon: Icon, children }: { icon?: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      {Icon && <Icon className="w-4 h-4 text-[rgba(23,20,17,0.45)]" />}
+      {Icon && <Icon className="w-4 h-4 text-[rgba(23,20,17,0.65)]" />}
       <h3 className="font-bold text-[#171411] text-sm">{children}</h3>
     </div>
   )
@@ -168,7 +168,7 @@ function OpenQuestion({ label, value }: { label: string; value: string }) {
   if (!value?.trim()) return null
   return (
     <div className="bg-[#EBE4D2] rounded-2xl p-4">
-      <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5 font-medium">{label}</p>
+      <p className="text-xs text-[#171411] mb-1.5 font-medium">{label}</p>
       <p className="text-[#171411] text-sm leading-relaxed">{value}</p>
     </div>
   )
@@ -232,7 +232,7 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="p-8 text-center">
-        <p className="text-gray-400 mb-4">פרופיל לא נמצא</p>
+        <p className="text-[#171411] mb-4">פרופיל לא נמצא</p>
         <Button asChild variant="outline" className="rounded-2xl">
           <Link href="/profile/me">חזור לפרופיל שלי</Link>
         </Button>
@@ -297,7 +297,7 @@ export default function ProfilePage() {
       <Button
         className={cn('flex-1 h-12 rounded-2xl font-bold transition-all',
           liked ? 'bg-[#B8472A] text-white hover:bg-[#7A2E18]'
-            : 'bg-[#EBE4D2] text-[rgba(23,20,17,0.65)] hover:bg-[#B8472A] hover:text-white'
+            : 'bg-[#EBE4D2] text-[#171411] hover:bg-[#B8472A] hover:text-white'
         )}
         onClick={handleLike}
       >
@@ -314,7 +314,7 @@ export default function ProfilePage() {
       <Button
         variant="outline"
         className={cn('w-12 h-12 rounded-2xl p-0 transition-all border-[rgba(23,20,17,0.15)]',
-          superLiked ? 'bg-[#171411] text-[#F2EDDF] border-[#171411]' : 'text-[rgba(23,20,17,0.55)] hover:bg-[rgba(23,20,17,0.06)]'
+          superLiked ? 'bg-[#171411] text-[#F2EDDF] border-[#171411]' : 'text-[#171411] hover:bg-[rgba(23,20,17,0.06)]'
         )}
         onClick={handleSuperLike} title={t.common.super_like}
       >
@@ -327,7 +327,7 @@ export default function ProfilePage() {
     <div className="max-w-2xl mx-auto pb-20 md:pb-6">
       {/* Back button */}
       <div className="p-4 pt-3">
-        <Button variant="ghost" asChild size="sm" className="rounded-2xl text-gray-600 hover:text-[#171411]">
+        <Button variant="ghost" asChild size="sm" className="rounded-2xl text-[#171411]">
           <Link href={isOwnProfile ? '/profile/me' : '/discover'}>
             <BackArrow className="w-4 h-4 me-2" />
             {t.common.back}
@@ -414,23 +414,23 @@ export default function ProfilePage() {
             <h1 className="font-serif text-3xl font-black text-[#171411] tracking-tight">
               {profile.first_name} {profile.last_name[0]}.
             </h1>
-            {age != null && <span className="text-2xl font-light text-[rgba(23,20,17,0.40)]">{age}</span>}
+            {age != null && <span className="text-2xl font-light text-[#171411]">{age}</span>}
             {profile.is_verified && <Shield className="w-5 h-5 text-blue-400 fill-blue-400" />}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
             {profile.height_cm && (
-              <span className="text-[rgba(23,20,17,0.55)] text-sm">{formatHeight(profile.height_cm)}</span>
+              <span className="text-[#171411] text-sm">{formatHeight(profile.height_cm)}</span>
             )}
             {profile.marital_status && (
-              <span className="text-[rgba(23,20,17,0.55)] text-sm">{MARITAL_STATUS[profile.marital_status]}</span>
+              <span className="text-[#171411] text-sm">{MARITAL_STATUS[profile.marital_status]}</span>
             )}
             {profile.children_count > 0 && (
-              <span className="text-[rgba(23,20,17,0.55)] text-sm">
+              <span className="text-[#171411] text-sm">
                 👶 {profile.children_count === 1 ? 'ילד אחד' : `${profile.children_count} ילדים`}
               </span>
             )}
             {profile.city && (
-              <span className="text-[rgba(23,20,17,0.55)] text-sm flex items-center gap-1">
+              <span className="text-[#171411] text-sm flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" />
                 {profile.city}
               </span>
@@ -450,7 +450,7 @@ export default function ProfilePage() {
               )}
               {profile.children_future && (
                 <div>
-                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">ילדים בעתיד</p>
+                  <p className="text-xs text-[#171411] mb-1.5">ילדים בעתיד</p>
                   <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium inline-block">
                     {CHILDREN_FUTURE[profile.children_future]}
                   </span>
@@ -459,7 +459,7 @@ export default function ProfilePage() {
               {(profile.seeking_status?.length > 0 || profile.seeking_with_kids ||
                 (profile.age_pref_min > 0 && profile.age_pref_max > 0)) && (
                 <div>
-                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">ההעדפות שלי לבן/בת הזוג</p>
+                  <p className="text-xs text-[#171411] mb-1.5">ההעדפות שלי לבן/בת הזוג</p>
                   <div className="flex flex-wrap gap-2">
                     {(profile.seeking_status ?? []).map(s => SEEKING_STATUS[s]).filter(Boolean).map(label => (
                       <span key={label} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
@@ -492,7 +492,7 @@ export default function ProfilePage() {
         {(oq.bio || profile.bio) && (
           <div>
             <SectionTitle>{t.profile.about}</SectionTitle>
-            <p className="text-[rgba(23,20,17,0.70)] leading-relaxed text-sm">{oq.bio || profile.bio}</p>
+            <p className="text-[#171411] leading-relaxed text-sm">{oq.bio || profile.bio}</p>
           </div>
         )}
 
@@ -522,19 +522,19 @@ export default function ProfilePage() {
             <div className="space-y-3">
               {profile.friday_night?.length > 0 && (
                 <div>
-                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">שישי בערב</p>
+                  <p className="text-xs text-[#171411] mb-1.5">שישי בערב</p>
                   <ChipRow values={profile.friday_night} map={FRIDAY_NIGHT} />
                 </div>
               )}
               {profile.saturday_morning?.length > 0 && (
                 <div>
-                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">שבת בבוקר</p>
+                  <p className="text-xs text-[#171411] mb-1.5">שבת בבוקר</p>
                   <ChipRow values={profile.saturday_morning} map={SATURDAY_MORNING} />
                 </div>
               )}
               {profile.romantic_vision?.length > 0 && (
                 <div>
-                  <p className="text-xs text-[rgba(23,20,17,0.45)] mb-1.5">רומנטי בעיניי</p>
+                  <p className="text-xs text-[#171411] mb-1.5">רומנטי בעיניי</p>
                   <ChipRow values={profile.romantic_vision} map={ROMANTIC_VISION} />
                 </div>
               )}
@@ -608,7 +608,7 @@ export default function ProfilePage() {
         {/* Action buttons — רק בסוף הפרופיל, למי שקרא עד הסוף */}
         {!isOwnProfile && (
           <div className="pt-2 border-t border-[rgba(23,20,17,0.10)]">
-            <p className="text-center text-sm text-[rgba(23,20,17,0.55)] mb-3">
+            <p className="text-center text-sm text-[#171411] mb-3">
               הגעת לסוף הפרופיל של {profile.first_name} — מה עכשיו?
             </p>
             <div className="flex gap-3">
