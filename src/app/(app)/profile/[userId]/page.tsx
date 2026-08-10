@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -199,9 +199,6 @@ export default function ProfilePage() {
   const [superLiked, setSuperLiked] = useState(false)
   const [messagingOpen, setMessagingOpen] = useState(false)
   const [adminBusy, setAdminBusy] = useState(false)
-  // סרגל פעולות דביק — מופיע כשגוללים מעבר לשורת הכפתורים המקורית
-  const actionsRef = useRef<HTMLDivElement>(null)
-  const [showSticky, setShowSticky] = useState(false)
 
   const BackArrow = isRTL ? ArrowRight : ArrowLeft
 
@@ -219,21 +216,6 @@ export default function ProfilePage() {
     if (!user || !userId) return
     isLiked(user.id, userId).then(setLiked)
   }, [user, userId])
-
-  useEffect(() => {
-    const onScroll = () => {
-      const el = actionsRef.current
-      if (!el) return
-      setShowSticky(el.getBoundingClientRect().bottom < 0)
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-    }
-  }, [loading, profile])
 
   if (loading) {
     return (
@@ -342,7 +324,7 @@ export default function ProfilePage() {
   )
 
   return (
-    <div className={cn('max-w-2xl mx-auto pb-20', showSticky ? 'md:pb-28' : 'md:pb-6')}>
+    <div className="max-w-2xl mx-auto pb-20 md:pb-6">
       {/* Back button */}
       <div className="p-4 pt-3">
         <Button variant="ghost" asChild size="sm" className="rounded-2xl text-gray-600 hover:text-[#171411]">
@@ -454,11 +436,6 @@ export default function ProfilePage() {
               </span>
             )}
           </div>
-        </div>
-
-        {/* Action buttons */}
-        <div ref={actionsRef} className="flex gap-3">
-          {actionButtons}
         </div>
 
         {/* Relationship goals + partner preferences */}
@@ -627,18 +604,18 @@ export default function ProfilePage() {
         )}
 
         {restPhotos.slice(3).map(p => <InlinePhoto key={p.id} photo={p} name={profile.first_name} />)}
-      </div>
 
-      {/* Sticky action bar — נגלה אחרי שגוללים מעבר לכפתורים המקוריים */}
-      <div className={cn(
-        'fixed bottom-[70px] md:bottom-0 left-0 right-0 md:ms-64 z-30',
-        'bg-white/95 backdrop-blur-sm border-t border-[#E5E5E5] px-4 py-2.5 md:pb-[max(0.625rem,env(safe-area-inset-bottom))]',
-        'transition-all duration-300',
-        showSticky ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'
-      )}>
-        <div className="max-w-2xl mx-auto flex gap-3">
-          {actionButtons}
-        </div>
+        {/* Action buttons — רק בסוף הפרופיל, למי שקרא עד הסוף */}
+        {!isOwnProfile && (
+          <div className="pt-2 border-t border-[rgba(23,20,17,0.10)]">
+            <p className="text-center text-sm text-[rgba(23,20,17,0.55)] mb-3">
+              הגעת לסוף הפרופיל של {profile.first_name} — מה עכשיו?
+            </p>
+            <div className="flex gap-3">
+              {actionButtons}
+            </div>
+          </div>
+        )}
       </div>
 
       <SendMessageDialog
