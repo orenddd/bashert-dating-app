@@ -1,12 +1,12 @@
 // ייבוא כל הנתונים ל-Convex דרך הפונקציות הפנימיות ב-convex/migrate.ts
 import { execFileSync } from 'node:child_process'
-import { readJson } from './lib.mjs'
+import { readJson, convexArgs } from './lib.mjs'
 
 const MAX_ARG_BYTES = 80_000 // שומר על שורת פקודה בטוחה
 
 function run(fn, args) {
   const payload = JSON.stringify(args)
-  const out = execFileSync('npx', ['convex', 'run', fn, payload], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  const out = execFileSync('npx', ['convex', 'run', ...convexArgs(), fn, payload], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
   const jsonStart = out.indexOf('{')
   return jsonStart >= 0 ? JSON.parse(out.slice(jsonStart)) : out.trim()
 }

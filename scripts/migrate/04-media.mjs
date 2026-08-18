@@ -1,12 +1,12 @@
 // העברת קבצי המדיה מ-Supabase Storage ל-Convex Storage
 import { execFileSync } from 'node:child_process'
-import { loadEnv } from './lib.mjs'
+import { loadEnv, convexArgs } from './lib.mjs'
 
 const CONCURRENCY = 4
 const env = loadEnv()
 
 function runConvex(fn, args = {}) {
-  const out = execFileSync('npx', ['convex', 'run', fn, JSON.stringify(args)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const out = execFileSync('npx', ['convex', 'run', ...convexArgs(), fn, JSON.stringify(args)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   const start = out.search(/[[{"]/)
   return start >= 0 ? JSON.parse(out.slice(start)) : out.trim()
 }

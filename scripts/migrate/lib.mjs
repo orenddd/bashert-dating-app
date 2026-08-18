@@ -48,3 +48,8 @@ export function writeJson(name, data) {
 export function readJson(name) {
   return JSON.parse(fs.readFileSync(path.join(DATA_DIR, name), 'utf8'))
 }
+
+// יעד ההרצה של ה-CLI: ברירת מחדל dev, ועם CONVEX_ENV=prod — הפרודקשן
+export function convexArgs() {
+  return process.env.CONVEX_ENV === 'prod' ? ['--prod'] : []
+}
