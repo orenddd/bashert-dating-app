@@ -3,6 +3,8 @@ import { Heebo, Frank_Ruhl_Libre } from 'next/font/google'
 import './globals.css'
 import { LanguageProvider } from '@/components/shared/LanguageProvider'
 import { AuthProvider } from '@/components/shared/AuthProvider'
+import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server'
+import { ConvexClientProvider } from '@/components/shared/ConvexClientProvider'
 import { Toaster } from '@/components/ui/sonner'
 
 const heebo = Heebo({
@@ -37,15 +39,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="he" dir="rtl" suppressHydrationWarning className={`${heebo.variable} ${frankRuhl.variable}`}>
-      <body className={`antialiased min-h-screen bg-background ${heebo.className}`}>
-        <LanguageProvider>
-          <AuthProvider>
-            {children}
-            <Toaster richColors position="top-center" />
-          </AuthProvider>
-        </LanguageProvider>
-      </body>
-    </html>
+    <ConvexAuthNextjsServerProvider>
+      <html lang="he" dir="rtl" suppressHydrationWarning className={`${heebo.variable} ${frankRuhl.variable}`}>
+        <body className={`antialiased min-h-screen bg-background ${heebo.className}`}>
+          <ConvexClientProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                {children}
+                <Toaster richColors position="top-center" />
+              </AuthProvider>
+            </LanguageProvider>
+          </ConvexClientProvider>
+        </body>
+      </html>
+    </ConvexAuthNextjsServerProvider>
   )
 }

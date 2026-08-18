@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { useTranslation } from '@/lib/i18n'
-import { fetchMessages, sendMessage, markMessagesRead } from '@/lib/api/messages'
-import { fetchProfile } from '@/lib/api/profiles'
-import { createClient } from '@/lib/supabase/client'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import type { DbMessage, DbProfile, DbPhoto } from '@/lib/types/database'
 import { Send, ArrowLeft, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -20,60 +20,27 @@ export default function ChatPage() {
   const { user } = useAuth()
   const params = useParams()
   const conversationId = params.id as string
-  const [messages, setMessages] = useState<DbMessage[]>([])
-  const [otherProfile, setOtherProfile] = useState<DbProfile | null>(null)
-  const [otherPhoto, setOtherPhoto] = useState<DbPhoto | null>(null)
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const BackArrow = isRTL ? ArrowRight : ArrowLeft
-  const supabase = createClient()
 
-  const loadConversation = useCallback(async () => {
-    if (!user) return
-    const { data: conv } = await supabase
-      .from('conversations')
-      .select('*')
-      .eq('id', conversationId)
-      .single() as unknown as { data: import('@/lib/types/database').DbConversation | null; error: unknown }
+  // Convex מזרים עדכונים אוטומטית — אין צורך במנוי realtime ידני
+  const convId = conversationId as Id<'conversations'>
+  const details = useQuery(api.messages.conversation, user ? { conversationId: convId } : 'skip')
+  const messagesResult = useQuery(api.messages.list, user ? { conversationId: convId } : 'skip')
+  const sendMessageMutation = useMutation(api.messages.send)
+  const markRead = useMutation(api.messages.markRead)
 
-    if (!conv) { setLoading(false); return }
-
-    const otherId = conv.participant1_id === user.id ? conv.participant2_id : conv.participant1_id
-    const [msgs, profileData] = await Promise.all([
-      fetchMessages(conversationId),
-      fetchProfile(otherId),
-    ])
-
-    setMessages(msgs)
-    if (profileData) {
-      setOtherProfile(profileData.profile)
-      setOtherPhoto(profileData.photos.find(p => p.is_primary) ?? profileData.photos[0] ?? null)
-    }
-    setLoading(false)
-    markMessagesRead(conversationId, user.id)
-  }, [user, conversationId, supabase])
+  const loading = !user || details === undefined || messagesResult === undefined
+  const messages = (messagesResult ?? []) as unknown as DbMessage[]
+  const otherProfile = (details?.profile ?? null) as unknown as DbProfile | null
+  const photos = (details?.photos ?? []) as unknown as DbPhoto[]
+  const otherPhoto = photos.find((p) => p.is_primary) ?? photos[0] ?? null
 
   useEffect(() => {
-    loadConversation()
-  }, [loadConversation])
-
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel(`conv:${conversationId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
-      }, (payload) => {
-        setMessages(prev => [...prev, payload.new as DbMessage])
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [conversationId, supabase])
+    if (!user || messagesResult === undefined) return
+    void markRead({ conversationId: convId })
+  }, [user, messagesResult, markRead, convId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -83,8 +50,7 @@ export default function ChatPage() {
     if (!input.trim() || !user) return
     const content = input.trim()
     setInput('')
-    const msg = await sendMessage(conversationId, user.id, content)
-    if (msg) setMessages(prev => [...prev, msg])
+    await sendMessageMutation({ conversationId: convId, content })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

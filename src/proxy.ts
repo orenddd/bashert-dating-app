@@ -1,59 +1,32 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import {
+  convexAuthNextjsMiddleware,
+  createRouteMatcher,
+  nextjsMiddlewareRedirect,
+} from '@convex-dev/auth/nextjs/server'
 
-const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/tracking']
-const SETUP_PATH = '/setup-profile'
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/tracking',
+])
 
-export async function proxy(request: NextRequest) {
-  const response = NextResponse.next({ request })
+// דפים שדורשים התחברות: הכל חוץ מהציבוריים. בדיקת השלמת הפרופיל
+// נעשית בצד הלקוח ב-(app)/layout.tsx, שם כבר יש את נתוני הפרופיל.
+export const proxy = convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
+  const isAuthenticated = await convexAuth.isAuthenticated()
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookies) => {
-          cookies.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value)
-            response.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
-
-  const { data: { session } } = await supabase.auth.getSession()
-  const path = request.nextUrl.pathname
-  const isPublic = PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'))
-  const isSetup = path === SETUP_PATH || path.startsWith(SETUP_PATH + '/')
-
-  // לא מחובר + דף מוגן → login
-  if (!session && !isPublic && !isSetup) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (!isPublicRoute(request) && !isAuthenticated) {
+    return nextjsMiddlewareRedirect(request, '/login')
   }
 
-  // לא מחובר + setup → login
-  if (!session && isSetup) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register') && isAuthenticated) {
+    return nextjsMiddlewareRedirect(request, '/home')
   }
-
-  // מחובר + login/register → בדוק profile_complete (DB query חד-פעמי)
-  if (session && (path === '/login' || path === '/register')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('profile_complete')
-      .eq('user_id', session.user.id)
-      .single()
-
-    const dest = profile?.profile_complete ? '/home' : SETUP_PATH
-    return NextResponse.redirect(new URL(dest, request.url))
-  }
-
-  return response
-}
+})
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+  // כולל /api/auth — שם רץ זרימת ההזדהות של Convex Auth
+  matcher: ['/((?!.*\\..*|_next).*)', '/', '/(api|trpc)(.*)'],
 }

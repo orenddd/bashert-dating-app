@@ -46,3 +46,6 @@ next-env.d.ts
 
 # supabase local CLI cache
 supabase/.temp/
+
+# migration artifacts (contains password hashes — never commit)
+migration-data/

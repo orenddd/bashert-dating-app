@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { fetchProfile } from '@/lib/api/profiles'
-import { createClient } from '@/lib/supabase/client'
+import { savePhotos, type PhotoInput } from '@/lib/api/photos'
+import { uploadToStorage } from '@/lib/convex/upload'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,10 +18,6 @@ import { detectFace, photoObjectPosition, type FaceCheckResult } from '@/lib/fac
 import { MIN_AGE, MIN_BIRTH_YEAR, maxBirthYear } from '@/lib/utils/age'
 import { PhotoCropDialog } from '@/components/profile/PhotoCropDialog'
 import type { DbPhoto } from '@/lib/types/database'
-
-// נתיב ייחודי ב-Storage לגרסה ערוכה של תמונה קיימת (מחוץ לקומפוננטה — נקרא רק בשמירה)
-const editedPhotoPath = (userId: string, photoId: string) =>
-  `${userId}/${Date.now()}-edit-${photoId.slice(0, 8)}.jpg`
 
 // ─── Helper Components ──────────────────────────────────────────────────────
 
@@ -360,68 +357,54 @@ export default function EditProfilePage() {
     setSaving(true)
     try {
       if (section === 'photos') {
-        const supabase = createClient()
-        if (photosToDelete.length > 0) {
-          await supabase.from('photos').delete().in('id', photosToDelete)
-        }
+        // בונים את מערך התמונות הסופי; כל מה שלא ברשימה יימחק בצד השרת
+        const kept = existingPhotos.filter(p => !photosToDelete.includes(p.id))
+        const items: PhotoInput[] = []
 
-        // תמונות קיימות שנערכו (זום/חיתוך) — העלאת הגרסה הערוכה ועדכון הרשומה
-        for (const [id, edited] of editedExisting) {
-          if (photosToDelete.includes(id)) continue
-          const path = editedPhotoPath(user.id, id)
-          const { data: uploaded, error: upErr } = await supabase.storage
-            .from('profile-photos')
-            .upload(path, edited.file, { upsert: true })
-          if (upErr) { console.error(upErr); continue }
-          const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(uploaded.path)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: updErr } = await (supabase.from('photos') as any)
-            .update({ url: publicUrl, face_focus_x: edited.face?.focusX ?? null, face_focus_y: edited.face?.focusY ?? null })
-            .eq('id', id)
-          if (updErr && String(updErr.message).includes('face_focus')) {
-            // מיגרציית face_focus טרם רצה על ה-DB — נעדכן בלי מוקד הפנים
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase.from('photos') as any).update({ url: publicUrl }).eq('id', id)
-          }
-        }
-        if (newPhotos.length > 0) {
-          const visibleExisting = existingPhotos.filter(p => !photosToDelete.includes(p.id))
-          const startIndex = visibleExisting.length
-          const toInsert: { user_id: string; url: string; is_primary: boolean; order_index: number; media_type: string; face_focus_x: number | null; face_focus_y: number | null }[] = []
-
-          for (let i = 0; i < newPhotos.length; i++) {
-            const file = newPhotos[i]
-            const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-            const path = `${user.id}/${Date.now()}-${startIndex + i}.${ext}`
-            const mediaType = file.type.startsWith('video') ? 'video'
-              : file.type.startsWith('audio') ? 'audio' : 'image'
-            const { data: uploaded, error: uploadErr } = await supabase.storage
-              .from('profile-photos')
-              .upload(path, file, { upsert: true })
-            if (uploadErr) { console.error(uploadErr); continue }
-            const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(uploaded.path)
-            const face = faceChecks.get(file)
-            toInsert.push({
-              user_id: user.id, url: publicUrl, is_primary: startIndex + i === 0,
-              order_index: startIndex + i, media_type: mediaType,
-              face_focus_x: face?.focusX ?? null, face_focus_y: face?.focusY ?? null,
+        for (let i = 0; i < kept.length; i++) {
+          const photo = kept[i]
+          const edited = editedExisting.get(photo.id)
+          if (edited) {
+            // גרסה ערוכה — הקובץ החדש מוחלף ברשומה חדשה במקום הישנה
+            const storageId = await uploadToStorage(edited.file)
+            items.push({
+              storage_id: storageId,
+              is_primary: i === 0,
+              order_index: i,
+              media_type: photo.media_type,
+              face_focus_x: edited.face?.focusX ?? null,
+              face_focus_y: edited.face?.focusY ?? null,
+            })
+          } else {
+            items.push({
+              id: photo.id,
+              is_primary: i === 0,
+              order_index: i,
+              media_type: photo.media_type,
+              face_focus_x: photo.face_focus_x ?? null,
+              face_focus_y: photo.face_focus_y ?? null,
             })
           }
-
-          if (toInsert.length > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error: insertErr } = await supabase.from('photos').insert(toInsert as any)
-            if (insertErr && String(insertErr.message).includes('face_focus')) {
-              // מיגרציית face_focus טרם רצה על ה-DB — נשמור בלי מוקד הפנים
-              const withoutFocus = toInsert.map(({ face_focus_x: _x, face_focus_y: _y, ...rest }) => rest)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await supabase.from('photos').insert(withoutFocus as any)
-            }
-          }
         }
 
-        const refreshed = await fetchProfile(user.id)
-        if (refreshed) setExistingPhotos(refreshed.photos)
+        for (let i = 0; i < newPhotos.length; i++) {
+          const file = newPhotos[i]
+          const mediaType = file.type.startsWith('video') ? 'video'
+            : file.type.startsWith('audio') ? 'audio' : 'image'
+          const storageId = await uploadToStorage(file)
+          const face = faceChecks.get(file)
+          items.push({
+            storage_id: storageId,
+            is_primary: kept.length + i === 0,
+            order_index: kept.length + i,
+            media_type: mediaType,
+            face_focus_x: face?.focusX ?? null,
+            face_focus_y: face?.focusY ?? null,
+          })
+        }
+
+        const saved = await savePhotos(items)
+        setExistingPhotos(saved)
         setNewPhotos([])
         setPhotosToDelete([])
         editedExisting.forEach(e => URL.revokeObjectURL(e.preview))

@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/shared/AuthProvider'
-import { fetchProfilesByApproval, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
+import { fetchProfilesByApproval, setProfileApproval, deleteUserAccount, fetchAllProfilesForAdmin } from '@/lib/api/profiles'
+import { convex } from '@/lib/convex/client'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { cn } from '@/lib/utils'
 import { photoObjectPosition } from '@/lib/faceDetection'
 import { calcAgeFromProfile } from '@/lib/utils/age'
@@ -71,7 +73,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function AdminPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-  const supabase = createClient()
 
   const [tab, setTab] = useState<'approvals' | 'feedback' | 'users'>('approvals')
   const [feedback, setFeedback] = useState<FeedbackRow[]>([])
@@ -98,34 +99,33 @@ export default function AdminPage() {
   const loadFeedback = useCallback(async () => {
     setLoadingData(true)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const q = (supabase.from('feedback') as any)
-        .select('*, profile:profiles(display_name, city)')
-        .order('created_at', { ascending: false })
-
-      const { data } = statusFilter !== 'all'
-        ? await q.eq('status', statusFilter)
-        : await q
-
-      setFeedback(data ?? [])
+      const rows = await convex.query(api.feedback.listAll, {})
+      const mapped = rows.map(r => ({
+        id: r.id,
+        user_id: String(r.user_id),
+        message: r.message,
+        category: r.category,
+        screenshots: r.screenshots,
+        status: r.status as FeedbackRow['status'],
+        admin_note: r.admin_note,
+        created_at: r.created_at,
+        profile: r.user_name ? { display_name: r.user_name, city: '' } : null,
+      }))
+      setFeedback(statusFilter !== 'all' ? mapped.filter(f => f.status === statusFilter) : mapped)
     } finally {
       setLoadingData(false)
     }
-  }, [supabase, statusFilter])
+  }, [statusFilter])
 
   const loadUsers = useCallback(async () => {
     setLoadingData(true)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase.from('profiles') as any)
-        .select('id, user_id, display_name, first_name, last_name, city, gender, profile_complete, is_verified, subscription_tier, is_admin, created_at')
-        .order('created_at', { ascending: false })
-        .limit(200)
-      setUsers(data ?? [])
+      const rows = await fetchAllProfilesForAdmin()
+      setUsers(rows.map(r => ({ ...r, user_id: String(r.user_id) })))
     } finally {
       setLoadingData(false)
     }
-  }, [supabase])
+  }, [])
 
   const loadApprovals = useCallback(async () => {
     setLoadingData(true)
@@ -164,14 +164,17 @@ export default function AdminPage() {
   useEffect(() => { if (isAdmin) refreshPendingCount() }, [isAdmin, refreshPendingCount])
 
   const updateFeedbackStatus = async (id: string, status: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('feedback') as any).update({ status }).eq('id', id)
+    await convex.mutation(api.feedback.setStatus, { feedbackId: id as Id<'feedback'>, status })
     setFeedback(prev => prev.map(f => f.id === id ? { ...f, status: status as FeedbackRow['status'] } : f))
   }
 
   const saveNote = async (id: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('feedback') as any).update({ admin_note: editingNote }).eq('id', id)
+    const row = feedback.find(f => f.id === id)
+    await convex.mutation(api.feedback.setStatus, {
+      feedbackId: id as Id<'feedback'>,
+      status: row?.status ?? 'new',
+      admin_note: editingNote,
+    })
     setFeedback(prev => prev.map(f => f.id === id ? { ...f, admin_note: editingNote } : f))
     setExpandedId(null)
   }
@@ -191,8 +194,7 @@ export default function AdminPage() {
   }
 
   const toggleAdmin = async (userId: string, current: boolean) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('profiles') as any).update({ is_admin: !current }).eq('user_id', userId)
+    await convex.mutation(api.admin.setUserAdmin, { userId: userId as Id<'users'>, is_admin: !current })
     setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_admin: !current } : u))
   }
 

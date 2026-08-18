@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/components/shared/AuthProvider'
-import { createClient } from '@/lib/supabase/client'
+import { savePhotos, type PhotoInput } from '@/lib/api/photos'
+import { uploadToStorage, storageUrl, discardUpload } from '@/lib/convex/upload'
+import type { Id } from '@/convex/_generated/dataModel'
 import { ArrowRight, ArrowLeft, Camera, X, Check, ImageUp, Sparkles, Eye, ClipboardList, Smile, Heart, Loader2, RotateCcw, PartyPopper, Crop } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -73,7 +75,7 @@ interface PhotoItem {
   previewUrl: string
   status: 'uploading' | 'done' | 'error'
   url?: string
-  path?: string
+  path?: string // מזהה הקובץ ב-Convex Storage
   mediaType: 'image' | 'video' | 'audio'
   file?: File // נשמר בזיכרון בלבד לצורך ניסיון חוזר — לא נכנס לטיוטה
   // תוצאת זיהוי הפנים (תמונות בלבד): checking בזמן הבדיקה; unknown = כשל טכני, לא חוסמים
@@ -526,18 +528,10 @@ export default function SetupProfilePage() {
     if (!userId) return
     const run = (async () => {
       try {
-        const supabase = createClient()
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-        const { data: uploaded, error } = await supabase.storage
-          .from('profile-photos')
-          .upload(path, file, { upsert: true })
-        if (error) throw error
-        const { data: { publicUrl } } = supabase.storage
-          .from('profile-photos')
-          .getPublicUrl(uploaded.path)
-        uploadedMetaRef.current.set(item.id, { url: publicUrl, path: uploaded.path, mediaType: item.mediaType })
-        setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'done', url: publicUrl, path: uploaded.path } : p))
+        const storageId = await uploadToStorage(file)
+        const url = (await storageUrl(storageId)) ?? ''
+        uploadedMetaRef.current.set(item.id, { url, path: storageId, mediaType: item.mediaType })
+        setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'done', url, path: storageId } : p))
       } catch (err) {
         console.error('upload error:', err)
         setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'error' } : p))
@@ -574,14 +568,13 @@ export default function SetupProfilePage() {
         const readyMetas = photos
           .map(p => {
             const meta = p.url && p.path
-              ? { url: p.url, mediaType: p.mediaType }
+              ? { url: p.url, path: p.path, mediaType: p.mediaType }
               : uploadedMetaRef.current.get(p.id)
             return meta ? { ...meta, focusX: p.focusX, focusY: p.focusY } : null
           })
           .filter((m): m is NonNullable<typeof m> => Boolean(m))
-        const toInsert = readyMetas.map((meta, i) => ({
-          user_id: user.id,
-          url: meta.url,
+        const items: PhotoInput[] = readyMetas.map((meta, i) => ({
+          storage_id: meta.path as Id<'_storage'>,
           is_primary: i === 0,
           order_index: i,
           media_type: meta.mediaType,
@@ -589,19 +582,9 @@ export default function SetupProfilePage() {
           face_focus_y: meta.focusY ?? null,
         }))
 
-        if (toInsert.length > 0) {
-          const supabase = createClient()
-          // מחק תמונות ישנות והכנס חדשות
-          await supabase.from('photos').delete().eq('user_id', user.id)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let { error: insertErr } = await (supabase.from('photos') as any).insert(toInsert)
-          if (insertErr && String(insertErr.message).includes('face_focus')) {
-            // מיגרציית face_focus טרם רצה על ה-DB — נשמור בלי מוקד הפנים
-            const withoutFocus = toInsert.map(({ face_focus_x: _x, face_focus_y: _y, ...rest }) => rest)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ;({ error: insertErr } = await (supabase.from('photos') as any).insert(withoutFocus))
-          }
-          if (insertErr) console.error('photos insert error:', insertErr)
+        if (items.length > 0) {
+          // התמונות הקודמות (אם יש) נמחקות בצד השרת יחד עם הקבצים שלהן
+          await savePhotos(items)
         }
       }
 
@@ -731,7 +714,7 @@ export default function SetupProfilePage() {
     if (item?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
     if (item?.path) {
       // ניקוי הקובץ שכבר הועלה — best effort, לא חוסם את המשתמש
-      void createClient().storage.from('profile-photos').remove([item.path])
+      void discardUpload(item.path as Id<'_storage'>).catch(() => {})
     }
   }
 
@@ -760,7 +743,7 @@ export default function SetupProfilePage() {
       const oldPath = uploadedMetaRef.current.get(item.id)?.path ?? item.path
       uploadedMetaRef.current.delete(item.id)
       if (item.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
-      if (oldPath) void createClient().storage.from('profile-photos').remove([oldPath])
+      if (oldPath) void discardUpload(oldPath as Id<'_storage'>).catch(() => {})
     })
   }
 

@@ -1,5 +1,8 @@
 'use client'
 
+import { convex } from '@/lib/convex/client'
+import { api } from '@/convex/_generated/api'
+
 import { useState } from 'react'
 import {
   Lock, Users, MessageSquare, RefreshCw, Mail, Phone, MapPin,
@@ -82,25 +85,22 @@ export default function TrackingPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/tracking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw, from: from || undefined, to: to || undefined }),
-      })
-      if (res.status === 401) {
-        setError('סיסמה שגויה')
-        setUnlocked(false)
-        return
-      }
-      if (!res.ok) {
-        setError('שגיאה בטעינת הנתונים')
-        return
-      }
-      const json: Data = await res.json()
+      const json = await convex.query(api.tracking.report, {
+        password: pw,
+        from: from || undefined,
+        to: to || undefined,
+      }) as Data
+
       setData(json)
       setUnlocked(true)
-    } catch {
-      setError('שגיאת רשת')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (message.includes('סיסמה שגויה')) {
+        setError('סיסמה שגויה')
+        setUnlocked(false)
+      } else {
+        setError('שגיאה בטעינת הנתונים')
+      }
     } finally {
       setLoading(false)
     }

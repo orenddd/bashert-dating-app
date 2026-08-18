@@ -1,151 +1,62 @@
-import { createClient } from '@/lib/supabase/client'
+import { convex } from '@/lib/convex/client'
+import { toPatch } from '@/lib/convex/patch'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
 import type { SearchFilters } from '@/lib/types/forms'
 
-type SupabaseResult<T> = { data: T | null; error: { message: string } | null }
-
-function ageToDob(age: number): string {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() - age)
-  return d.toISOString().split('T')[0]
-}
+type ProfileWithPhotos = { profile: DbProfile; photos: DbPhoto[] }
 
 export async function fetchDiscoverProfiles(
-  currentUserId: string,
+  _currentUserId: string,
   filters?: Partial<SearchFilters>,
-): Promise<{ profile: DbProfile; photos: DbPhoto[] }[]> {
-  const supabase = createClient()
-
-  // Load current user's seeking preference for gender filter
-  const { data: me } = await supabase
-    .from('profiles')
-    .select('seeking, gender')
-    .eq('user_id', currentUserId)
-    .single() as unknown as SupabaseResult<{ seeking: string; gender: string }>
-
-  let query = supabase
-    .from('profiles')
-    .select('*')
-    .neq('user_id', currentUserId)
-    .eq('profile_complete', true)
-    // רק פרופילים שאושרו ידנית ע"י מנהל מופיעים בגילוי
-    .eq('approval_status', 'approved')
-
-  // Gender filter based on what the current user is seeking
-  if (me?.seeking && me.seeking !== 'both') {
-    query = query.eq('gender', me.seeking) as typeof query
-  }
-
-  // Age range → date_of_birth range
-  if (filters?.age_min) {
-    query = query.lte('date_of_birth', ageToDob(filters.age_min)) as typeof query
-  }
-  if (filters?.age_max) {
-    query = query.gte('date_of_birth', ageToDob(filters.age_max)) as typeof query
-  }
-
-  // Religious level
-  if (filters?.religious_levels?.length) {
-    query = query.in('religious_level', filters.religious_levels) as typeof query
-  }
-
-  // Community background
-  if (filters?.community_backgrounds?.length) {
-    query = query.in('community_background', filters.community_backgrounds) as typeof query
-  }
-
-  // Shomer Shabbat
-  if (filters?.shomer_shabbat_only) {
-    query = query.eq('shomer_shabbat', true) as typeof query
-  }
-
-  // Verified only
-  if (filters?.verified_only) {
-    query = query.eq('is_verified', true) as typeof query
-  }
-
-  const { data: profiles } = await query
-    .order('is_online', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(60) as unknown as SupabaseResult<DbProfile[]>
-
-  if (!profiles?.length) return []
-
-  const userIds = profiles.map(p => p.user_id)
-  const { data: photos } = await supabase
-    .from('photos')
-    .select('*')
-    .in('user_id', userIds) as unknown as SupabaseResult<DbPhoto[]>
-
-  // If has_photos_only, filter out profiles with no photos
-  const allPhotos = photos ?? []
-  return profiles
-    .filter(profile => !filters?.has_photos_only || allPhotos.some(ph => ph.user_id === profile.user_id))
-    .map(profile => ({
-      profile,
-      photos: allPhotos.filter(ph => ph.user_id === profile.user_id),
-    }))
+): Promise<ProfileWithPhotos[]> {
+  const result = await convex.query(api.profiles.discover, {
+    currentYear: new Date().getFullYear(),
+    filters: filters
+      ? {
+          age_min: filters.age_min,
+          age_max: filters.age_max,
+          religious_levels: filters.religious_levels,
+          community_backgrounds: filters.community_backgrounds,
+          shomer_shabbat_only: filters.shomer_shabbat_only,
+          verified_only: filters.verified_only,
+          has_photos_only: filters.has_photos_only,
+        }
+      : undefined,
+  })
+  return result as unknown as ProfileWithPhotos[]
 }
 
-export async function fetchProfile(userId: string): Promise<{ profile: DbProfile; photos: DbPhoto[] } | null> {
-  const supabase = createClient()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single() as unknown as SupabaseResult<DbProfile>
-
-  if (!profile) return null
-
-  const { data: photos } = await supabase
-    .from('photos')
-    .select('*')
-    .eq('user_id', userId)
-    .order('order_index') as unknown as SupabaseResult<DbPhoto[]>
-
-  return { profile, photos: photos ?? [] }
+export async function fetchProfile(userId: string): Promise<ProfileWithPhotos | null> {
+  const result = await convex.query(api.profiles.byUserId, { userId: userId as Id<'users'> })
+  return result as unknown as ProfileWithPhotos | null
 }
 
-export async function fetchCurrentUserProfile(userId: string): Promise<DbProfile | null> {
-  const supabase = createClient()
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single() as unknown as SupabaseResult<DbProfile>
-
-  return data
+export async function fetchCurrentUserProfile(_userId?: string): Promise<DbProfile | null> {
+  const me = await convex.query(api.profiles.me, {})
+  return (me?.profile ?? null) as unknown as DbProfile | null
 }
 
-// ─── Admin moderation ────────────────────────────────────────────────────────
+export async function fetchMyStats(): Promise<{ likes: number; matches: number; views: number }> {
+  return await convex.query(api.profiles.myStats, {})
+}
+
+export async function incrementProfileViews(userId: string): Promise<void> {
+  await convex.mutation(api.profiles.incrementViews, { userId: userId as Id<'users'> })
+}
+
+// ─── ניהול ───────────────────────────────────────────────────────────────────
 
 export async function fetchProfilesByApproval(
   status: 'pending' | 'approved' | 'rejected',
-): Promise<{ profile: DbProfile; photos: DbPhoto[] }[]> {
-  const supabase = createClient()
+): Promise<ProfileWithPhotos[]> {
+  const result = await convex.query(api.profiles.byApproval, { status })
+  return result as unknown as ProfileWithPhotos[]
+}
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('approval_status', status)
-    .eq('profile_complete', true)
-    .order('created_at', { ascending: true }) as unknown as SupabaseResult<DbProfile[]>
-
-  if (!profiles?.length) return []
-
-  const userIds = profiles.map(p => p.user_id)
-  const { data: photos } = await supabase
-    .from('photos')
-    .select('*')
-    .in('user_id', userIds)
-    .order('order_index') as unknown as SupabaseResult<DbPhoto[]>
-
-  const allPhotos = photos ?? []
-  return profiles.map(profile => ({
-    profile,
-    photos: allPhotos.filter(ph => ph.user_id === profile.user_id),
-  }))
+export async function fetchAllProfilesForAdmin() {
+  return await convex.query(api.profiles.adminList, {})
 }
 
 export async function setProfileApproval(
@@ -153,50 +64,30 @@ export async function setProfileApproval(
   status: 'pending' | 'approved' | 'rejected',
   note = '',
 ): Promise<boolean> {
-  const supabase = createClient()
-  const patch: Record<string, unknown> = {
-    approval_status: status,
-    approval_note: note,
-    approved_at: status === 'approved' ? new Date().toISOString() : null,
+  try {
+    return await convex.mutation(api.profiles.setApproval, {
+      userId: userId as Id<'users'>,
+      status,
+      note,
+    })
+  } catch {
+    return false
   }
-  const { error } = await (supabase.from('profiles') as unknown as {
-    update: (v: unknown) => { eq: (c: string, val: string) => Promise<{ error: { message: string } | null }> }
-  })
-    .update(patch)
-    .eq('user_id', userId)
-  return !error
 }
 
-// מחיקת משתמש מלאה (auth + כל הנתונים + Storage) — למנהלים בלבד, דרך route בצד שרת
+// מחיקת משתמש מלאה (הזדהות + כל הנתונים + קבצים) — למנהלים בלבד
 export async function deleteUserAccount(userId: string): Promise<{ ok: boolean; error?: string }> {
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { ok: false, error: 'נדרשת התחברות' }
-
-  const res = await fetch('/api/admin/delete-user', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({ userId }),
-  })
-  if (res.ok) return { ok: true }
-  const json = await res.json().catch(() => ({}))
-  return { ok: false, error: (json as { error?: string }).error ?? 'שגיאה במחיקה' }
+  try {
+    await convex.mutation(api.admin.deleteUser, { userId: userId as Id<'users'> })
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'שגיאה במחיקה' }
+  }
 }
 
-export async function upsertProfile(data: Partial<DbProfile> & { user_id: string }): Promise<DbProfile | null> {
-  const supabase = createClient()
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .upsert(data as never, { onConflict: 'user_id' })
-    .select()
-    .single() as unknown as SupabaseResult<DbProfile> & { error: { message: string } | null }
-
-  if (error) {
-    console.error('upsertProfile error:', error)
-    throw new Error(error.message)
-  }
-  return profile
+export async function upsertProfile(
+  data: Partial<DbProfile> & { user_id?: string },
+): Promise<DbProfile | null> {
+  const profile = await convex.mutation(api.profiles.update, { patch: toPatch(data) })
+  return profile as unknown as DbProfile | null
 }

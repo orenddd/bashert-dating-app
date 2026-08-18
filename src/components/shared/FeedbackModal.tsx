@@ -4,7 +4,10 @@ import { useState, useRef } from 'react'
 import { X, MessageSquare, Camera, Send, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { createClient } from '@/lib/supabase/client'
+import { convex } from '@/lib/convex/client'
+import { api } from '@/convex/_generated/api'
+import { uploadToStorage } from '@/lib/convex/upload'
+import type { Id } from '@/convex/_generated/dataModel'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { cn } from '@/lib/utils'
 
@@ -52,31 +55,19 @@ export function FeedbackModal({ open, onClose }: Props) {
     if (!message.trim() || !user) return
     setSending(true)
     try {
-      const supabase = createClient()
-      const urls: string[] = []
-
-      for (let i = 0; i < screenshots.length; i++) {
-        const file = screenshots[i]
-        const ext = file.name.split('.').pop() || 'png'
-        const path = `${user.id}/${Date.now()}-${i}.${ext}`
-        const { data: uploaded, error } = await supabase.storage
-          .from('feedback-screenshots')
-          .upload(path, file, { upsert: true })
-        if (!error && uploaded) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('feedback-screenshots')
-            .getPublicUrl(uploaded.path)
-          urls.push(publicUrl)
+      const screenshotIds: Id<'_storage'>[] = []
+      for (const file of screenshots) {
+        try {
+          screenshotIds.push(await uploadToStorage(file, 'feedback'))
+        } catch (err) {
+          console.error('screenshot upload error:', err)
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('feedback') as any).insert({
-        user_id: user.id,
+      await convex.mutation(api.feedback.submit, {
         message: message.trim(),
         category,
-        screenshots: urls,
-        status: 'new',
+        screenshot_ids: screenshotIds,
       })
 
       setSent(true)

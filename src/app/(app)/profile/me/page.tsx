@@ -5,7 +5,7 @@ import { AppHeader } from '@/components/layout/AppHeader'
 import { useTranslation } from '@/lib/i18n'
 import { useAuth } from '@/components/shared/AuthProvider'
 import { fetchProfile } from '@/lib/api/profiles'
-import { createClient } from '@/lib/supabase/client'
+import { fetchMyStats } from '@/lib/api/profiles'
 import { formatHeight, calcAgeFromProfile } from '@/lib/utils/age'
 import { photoObjectPosition } from '@/lib/faceDetection'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
@@ -44,28 +44,16 @@ export default function MyProfilePage() {
     const load = async () => {
       setIsLoading(true)
       try {
-        const supabase = createClient()
-
-        // Profile + photos
-        const data = await fetchProfile(user.id)
+        const [data, stats] = await Promise.all([
+          fetchProfile(user.id),
+          fetchMyStats(),
+        ])
         if (data) {
           setProfile(data.profile)
           setPhotos(data.photos)
         }
-
-        // Likes count (received)
-        const { count: likes } = await supabase
-          .from('likes')
-          .select('*', { count: 'exact', head: true })
-          .eq('to_user_id', user.id)
-        setLikesCount(likes ?? 0)
-
-        // Matches count
-        const { count: matches } = await supabase
-          .from('matches')
-          .select('*', { count: 'exact', head: true })
-          .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-        setMatchesCount(matches ?? 0)
+        setLikesCount(stats.likes)
+        setMatchesCount(stats.matches)
       } finally {
         setIsLoading(false)
       }
