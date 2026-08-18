@@ -53,3 +53,10 @@ export function readJson(name) {
 export function convexArgs() {
   return process.env.CONVEX_ENV === 'prod' ? ['--prod'] : []
 }
+
+// כתובת ה-deployment לפי היעד הנבחר
+export function convexUrl(env) {
+  return process.env.CONVEX_ENV === 'prod'
+    ? (process.env.CONVEX_PROD_URL ?? 'https://capable-stoat-757.convex.cloud')
+    : env.NEXT_PUBLIC_CONVEX_URL
+}

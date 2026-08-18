@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { ConvexHttpClient } from 'convex/browser'
 import { execFileSync } from 'node:child_process'
-import { loadEnv, runSql } from './lib.mjs'
+import { loadEnv, runSql, convexArgs, convexUrl } from './lib.mjs'
 
 const env = loadEnv()
 const EMAIL = `migration-check-${Date.now()}@example.com`
@@ -11,6 +11,7 @@ const PASSWORD = 'S3cret-Migration-Check!'
 
 const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
 
+console.log('יעד:', convexUrl(env))
 console.log('1. יצירת משתמש זמני ב-Supabase...')
 const { data: created, error } = await sb.auth.admin.createUser({
   email: EMAIL, password: PASSWORD, email_confirm: true,
@@ -24,11 +25,11 @@ try {
   console.log('   פורמט ה-hash:', row.encrypted_password.slice(0, 7))
 
   console.log('3. ייבוא ל-Convex...')
-  const out = execFileSync('npx', ['convex', 'run', 'migrate:importUsers', JSON.stringify({ batch: [row] })], { encoding: 'utf8' })
+  const out = execFileSync('npx', ['convex', 'run', ...convexArgs(), 'migrate:importUsers', JSON.stringify({ batch: [row] })], { encoding: 'utf8' })
   console.log('  ', out.trim().replace(/\s+/g, ' '))
 
   console.log('4. התחברות מול Convex Auth עם הסיסמה המקורית...')
-  const convex = new ConvexHttpClient(env.NEXT_PUBLIC_CONVEX_URL)
+  const convex = new ConvexHttpClient(convexUrl(env))
   const { api } = await import('../../convex/_generated/api.js')
   const res = await convex.action(api.auth.signIn, {
     provider: 'password',
@@ -48,6 +49,6 @@ try {
 } finally {
   console.log('6. ניקוי...')
   await sb.auth.admin.deleteUser(userId)
-  const outUsers = execFileSync('npx', ['convex', 'run', 'migrate:deleteBySupabaseId', JSON.stringify({ supabase_id: userId })], { encoding: 'utf8' })
+  const outUsers = execFileSync('npx', ['convex', 'run', ...convexArgs(), 'migrate:deleteBySupabaseId', JSON.stringify({ supabase_id: userId })], { encoding: 'utf8' })
   console.log('  ', outUsers.trim().replace(/\s+/g, ' '))
 }

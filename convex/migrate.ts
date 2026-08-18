@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { internalMutation, internalQuery } from './_generated/server'
 import type { Id, TableNames } from './_generated/dataModel'
 import type { MutationCtx } from './_generated/server'
+import { emptyProfile } from './profileDefaults'
 
 type Row = Record<string, unknown>
 
@@ -514,7 +515,11 @@ export const devCompleteProfile = internalMutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.query('users').withIndex('email', (q) => q.eq('email', args.email)).unique()
     if (!user) return { ok: false }
-    const profile = await ctx.db.query('profiles').withIndex('by_user_id', (q) => q.eq('user_id', user._id)).unique()
+    let profile = await ctx.db.query('profiles').withIndex('by_user_id', (q) => q.eq('user_id', user._id)).unique()
+    if (!profile) {
+      const id = await ctx.db.insert('profiles', { ...emptyProfile(user._id), first_name: 'בדיקה', display_name: 'בדיקה חיה' })
+      profile = await ctx.db.get('profiles', id)
+    }
     if (!profile) return { ok: false }
     await ctx.db.patch('profiles', profile._id, {
       profile_complete: true,

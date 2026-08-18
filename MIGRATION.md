@@ -52,14 +52,27 @@ bcryptjs מתזמן עבודה עם `setTimeout`, ש-Convex אוסר בתוך mu
 
 ## מצב נוכחי
 
-ההגירה הושלמה על ה-deployment של הפיתוח (`rugged-mammoth-669`):
-93 משתמשים, 92 פרופילים, 182 קבצי מדיה (402MB), התאמה אחת ו-3 משובים.
+ההגירה הושלמה בשתי הסביבות:
 
-## מה נדרש לפרודקשן
+- פיתוח: `rugged-mammoth-669`
+- פרודקשן: `capable-stoat-757` — מחובר ל-https://www.matzatiotcha.com
 
-1. `npx convex deploy` — יוצר deployment של פרודקשן.
-2. להגדיר עליו משתני סביבה: `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` (כתובת האתר), `TRACKING_PASSWORD`.
-3. להריץ שוב את `03-import.mjs` ו-`04-media.mjs` מול הפרודקשן (`--prod` ל-CLI).
-4. לעדכן ב-Vercel: `NEXT_PUBLIC_CONVEX_URL` ו-`NEXT_PUBLIC_CONVEX_SITE_URL` של הפרודקשן,
-   ולהסיר את משתני ה-Supabase.
-5. לוודא התחברות של משתמש קיים, ורק אחר כך לסגור את פרויקט ה-Supabase.
+בשתיהן: 93 משתמשים, 92 פרופילים, 182 קבצי מדיה, התאמה אחת ו-3 משובים.
+
+הרצת סקריפט מול הפרודקשן: `CONVEX_ENV=prod node scripts/migrate/03-import.mjs`.
+
+## דיפלוי
+
+הבילד ב-Vercel מריץ `next build` בלבד ומשתמש ב-`NEXT_PUBLIC_CONVEX_URL`.
+**שינוי בפונקציות של Convex לא עולה לפרודקשן עם ה-push** — צריך להריץ בנפרד:
+
+```bash
+npx convex deploy
+```
+
+## מה נשאר
+
+- להסיר מ-Vercel את `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  ו-`SUPABASE_SERVICE_ROLE_KEY` — הם נשמרו כדי לאפשר חזרה לבילד הקודם,
+  ואפשר למחוק אותם יחד עם סגירת פרויקט ה-Supabase.
+- למחוק את `convex/migrate.ts` ואת `scripts/migrate/` כשכבר לא יהיה בהם צורך.
