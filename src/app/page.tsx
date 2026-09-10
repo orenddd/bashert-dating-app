@@ -17,7 +17,7 @@ export default function WelcomePage() {
         <img
           src="/home-bg.jpeg"
           alt="מצאתי אותך — אהבה ישראלית בארצות הברית"
-          className="w-full max-w-[420px] rounded-[9%] shadow-2xl shadow-black/40"
+          className="w-full max-w-[420px] rounded-[17%] shadow-2xl shadow-black/40"
         />
       </div>
 
