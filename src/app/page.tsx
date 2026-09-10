@@ -2,12 +2,24 @@ import Link from 'next/link'
 
 export default function WelcomePage() {
   return (
-    <div className="relative flex flex-col min-h-screen overflow-hidden bg-[#050a1a]">
-      {/* רקע — פוסטר המותג (כדור הארץ + הלוגו) */}
+    <div className="relative flex flex-col min-h-screen overflow-hidden bg-[#0A2647]">
+      {/* מילוי המסך בגוני המותג — כדי שהלוגו לא ייחתך ובכל זאת אין פסים ריקים */}
       <div
-        className="absolute inset-0 bg-cover bg-top"
-        style={{ backgroundImage: 'url(/logodatingapp.jpeg)' }}
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(120% 80% at 50% 28%, #2E7FD4 0%, #1A5CA8 38%, #0D3A73 68%, #061C3D 100%)',
+        }}
       />
+
+      {/* הלוגו — מוצג במלואו, ללא חיתוך. הפינות המעוגלות גוזרות את המסגרת השחורה */}
+      <div className="absolute inset-x-0 top-[10%] flex justify-center px-5">
+        <img
+          src="/home-bg.jpeg"
+          alt="מצאתי אותך — אהבה ישראלית בארצות הברית"
+          className="w-full max-w-[420px] rounded-[9%] shadow-2xl shadow-black/40"
+        />
+      </div>
 
       {/* שכבת הכהיה בתחתית — לקריאוּת הכפתורים */}
       <div

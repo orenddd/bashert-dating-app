@@ -73,14 +73,15 @@ const SEEKING_WITH_KIDS: Record<string, string> = {
 // ערך-דגל ל"ללא הגבלת מרחק" (ראו setup-profile)
 const DISTANCE_NO_LIMIT = 99999
 
-const RELIGIOUS_LEVEL: Record<string, string> = {
-  hiloni: '☀️ חילוני',
-  hiloni_heart: '💙 יהודי בלב',
-  masorti: '🕎 מסורתי',
-  masorti_lite: '🍷 מסורתי לייט',
-  dati_light: '📖 דתי לייט',
-  dati: '✡️ דתי',
-  haredi: '⚫ חרדי',
+// אותן רמות דתיות, בלי אימוג'י — לשורת המידע הבסיסי שליד הגובה והעיר
+const RELIGIOUS_LEVEL_PLAIN: Record<string, string> = {
+  hiloni: 'חילוני',
+  hiloni_heart: 'יהודי בלב',
+  masorti: 'מסורתי',
+  masorti_lite: 'מסורתי לייט',
+  dati_light: 'דתי לייט',
+  dati: 'דתי',
+  haredi: 'חרדי',
 }
 
 const ROMANTIC_VISION: Record<string, string> = {
@@ -374,33 +375,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Photo header — התמונה הראשונה; השאר מפוזרות בגוף הפרופיל */}
-      <div className="relative h-[420px] md:h-[520px] mx-4 rounded-3xl overflow-hidden bg-[#EBE4D2]">
-        <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photos[0]) }} />
-
-        <div className="absolute bottom-4 start-4 end-4 flex items-end justify-between">
-          <div className="flex flex-col gap-2">
-            {profile.is_online && (
-              <div className="flex items-center gap-1.5 bg-green-500/20 backdrop-blur-sm border border-green-400/30 px-3 py-1 rounded-full w-fit">
-                <div className="w-2 h-2 bg-green-400 rounded-full" />
-                <span className="text-xs text-white font-medium">{t.profile.online}</span>
-              </div>
-            )}
-            {profile.subscription_tier !== 'free' && (
-              <Badge className="bg-[#2E5A7C] text-white border-0 text-xs w-fit">
-                {profile.subscription_tier === 'platinum' ? '💎 Platinum' : '✨ Gold'}
-              </Badge>
-            )}
-          </div>
-          {profile.is_verified && (
-            <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 px-3 py-1.5 rounded-full flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-blue-300 fill-blue-300" />
-              <span className="text-xs text-white font-medium">{t.profile.verified}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="px-5 pt-5 space-y-5">
         {/* Name & basic info */}
         <div>
@@ -420,6 +394,11 @@ export default function ProfilePage() {
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
             {profile.height_cm && (
               <span className="text-[#171411] text-sm">{formatHeight(profile.height_cm)}</span>
+            )}
+            {profile.religious_level && (RELIGIOUS_LEVEL_PLAIN[profile.religious_level] ?? profile.religious_level) && (
+              <span className="text-[#171411] text-sm">
+                {RELIGIOUS_LEVEL_PLAIN[profile.religious_level] ?? profile.religious_level}
+              </span>
             )}
             {profile.marital_status && (
               <span className="text-[#171411] text-sm">{MARITAL_STATUS[profile.marital_status]}</span>
@@ -505,14 +484,31 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {restPhotos[0] && <InlinePhoto photo={restPhotos[0]} name={profile.first_name} />}
+        {/* התמונה הראשונה — מוצגת רק אחרי המידע העיקרי */}
+        <div className="relative h-[420px] md:h-[520px] rounded-3xl overflow-hidden bg-[#EBE4D2]">
+          <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photos[0]) }} />
 
-        {/* Jewish attributes */}
-        <div className="bg-[#EBE4D2] rounded-2xl p-4 border border-[rgba(23,20,17,0.06)]">
-          <SectionTitle>{t.religious.level_label}</SectionTitle>
-          {profile.religious_level && (
-            <p className="text-sm font-medium text-[#171411]">{RELIGIOUS_LEVEL[profile.religious_level] ?? profile.religious_level}</p>
-          )}
+          <div className="absolute bottom-4 start-4 end-4 flex items-end justify-between">
+            <div className="flex flex-col gap-2">
+              {profile.is_online && (
+                <div className="flex items-center gap-1.5 bg-green-500/20 backdrop-blur-sm border border-green-400/30 px-3 py-1 rounded-full w-fit">
+                  <div className="w-2 h-2 bg-green-400 rounded-full" />
+                  <span className="text-xs text-white font-medium">{t.profile.online}</span>
+                </div>
+              )}
+              {profile.subscription_tier !== 'free' && (
+                <Badge className="bg-[#2E5A7C] text-white border-0 text-xs w-fit">
+                  {profile.subscription_tier === 'platinum' ? '💎 Platinum' : '✨ Gold'}
+                </Badge>
+              )}
+            </div>
+            {profile.is_verified && (
+              <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-blue-300 fill-blue-300" />
+                <span className="text-xs text-white font-medium">{t.profile.verified}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Lifestyle: friday / saturday / romantic */}
@@ -542,7 +538,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {restPhotos[1] && <InlinePhoto photo={restPhotos[1]} name={profile.first_name} />}
+        {restPhotos[0] && <InlinePhoto photo={restPhotos[0]} name={profile.first_name} />}
 
         {/* Hobbies */}
         {profile.hobbies?.length > 0 && (
@@ -574,7 +570,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {restPhotos[2] && <InlinePhoto photo={restPhotos[2]} name={profile.first_name} />}
+        {restPhotos[1] && <InlinePhoto photo={restPhotos[1]} name={profile.first_name} />}
 
         {/* More open questions */}
         {(oq.quote || oq.loves || oq.strength || oq.future_self || oq.future_us) && (
@@ -603,7 +599,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {restPhotos.slice(3).map(p => <InlinePhoto key={p.id} photo={p} name={profile.first_name} />)}
+        {restPhotos.slice(2).map(p => <InlinePhoto key={p.id} photo={p} name={profile.first_name} />)}
 
         {/* Action buttons — רק בסוף הפרופיל, למי שקרא עד הסוף */}
         {!isOwnProfile && (

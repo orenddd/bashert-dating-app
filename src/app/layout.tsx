@@ -24,6 +24,12 @@ const frankRuhl = Frank_Ruhl_Libre({
 export const metadata: Metadata = {
   title: 'מצאתי אותך — הכרויות',
   description: 'אפליקציית ההיכרויות הישראלית — מצא את הזיווג שלך',
+  // הכיתוב שמופיע מתחת לאייקון כשמוסיפים למסך הבית ב-iOS
+  appleWebApp: {
+    capable: true,
+    title: 'מצאתי אותך',
+    statusBarStyle: 'black-translucent',
+  },
   // האייקונים נטענים אוטומטית מקבצי הקונבנציה של Next:
   // src/app/favicon.ico, src/app/icon.png, src/app/apple-icon.png
 }

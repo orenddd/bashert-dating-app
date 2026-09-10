@@ -718,9 +718,7 @@ export default function EditProfilePage() {
                 <MultiSelectButtons
                   options={[
                     { value: 'hiloni', label: '☀️ חילוני' },
-                    { value: 'hiloni_heart', label: '💙 יהודי בלב, חילוני בלו״ז' },
                     { value: 'masorti', label: '🕎 מסורתי' },
-                    { value: 'masorti_lite', label: '🍷 עושה קידוש ואז מדליק טלוויזיה' },
                     { value: 'dati_light', label: '📖 דתי לייט' },
                     { value: 'dati', label: '✡️ דתי על מלא' },
                   ]}
