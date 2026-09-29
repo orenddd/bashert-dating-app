@@ -214,6 +214,16 @@ export default defineSchema({
     screenshot_ids: v.optional(v.array(v.id('_storage'))),
     status: v.string(), // new | in_progress | done
     admin_note: v.string(),
+    // תיקון אוטומטי ע"י Claude Code (Routines API) — ראו convex/claude.ts
+    claude_status: v.optional(v.string()), // queued | sent | working | pr_open | failed | error
+    claude_token: v.optional(v.string()), // סוד חד-פעמי לעדכוני סטטוס מהסשן
+    claude_session_url: v.optional(v.string()),
+    claude_pr_url: v.optional(v.string()),
+    claude_plan: v.optional(v.string()), // מה קלוד מתכנן לעשות
+    claude_summary: v.optional(v.string()),
+    claude_log: v.optional(v.array(v.object({ at: timestamp, status: v.string(), note: v.optional(v.string()) }))),
+    claude_error: v.optional(v.string()),
+    claude_updated_at: v.optional(timestamp),
     created_at: timestamp,
     updated_at: timestamp,
     legacy_id: v.optional(v.string()),

@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { withId, requireUserId, requireAdmin, getProfile } from './helpers'
+import { queueForClaude, shouldAutoSend } from './claude'
 
 export const submit = mutation({
   args: {
@@ -21,7 +22,7 @@ export const submit = mutation({
     }
 
     const now = new Date().toISOString()
-    await ctx.db.insert('feedback', {
+    const feedbackId = await ctx.db.insert('feedback', {
       user_id: userId,
       message,
       category: args.category || 'general',
@@ -32,6 +33,12 @@ export const submit = mutation({
       created_at: now,
       updated_at: now,
     })
+
+    // דיווח חדש נשלח מיד ל-Claude לתיקון (מנהלים תמיד; משתמשים רק אם CLAUDE_AUTOFIX_ALL)
+    const profile = await getProfile(ctx, userId)
+    if (shouldAutoSend(profile?.is_admin === true)) {
+      await queueForClaude(ctx, feedbackId)
+    }
     return null
   },
 })
@@ -50,8 +57,11 @@ export const listAll = query({
       const screenshots = row.screenshot_ids?.length
         ? (await Promise.all(row.screenshot_ids.map((id) => ctx.storage.getUrl(id)))).filter((u): u is string => !!u)
         : row.screenshots
+      // הטוקן וקישור הסשן לא יוצאים לדפדפן — בממשק מוצג רק "צוות הפיתוח"
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { claude_token, claude_session_url, ...publicRow } = row
       out.push({
-        ...withId(row),
+        ...withId(publicRow),
         screenshots,
         user_name: profile ? (profile.display_name || `${profile.first_name} ${profile.last_name}`.trim()) : '',
       })
