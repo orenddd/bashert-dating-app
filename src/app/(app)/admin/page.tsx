@@ -14,6 +14,7 @@ import { calcAgeFromProfile } from '@/lib/utils/age'
 import {
   Shield, Users, MessageSquare, CheckCircle2, Clock, Eye,
   ChevronDown, ChevronUp, RefreshCw, Image, X, MapPin, UserCheck, Trash2,
+  Wrench, GitPullRequest,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,10 @@ interface FeedbackRow {
   admin_note: string | null
   created_at: string
   profile?: { display_name: string; city: string } | null
+  claude_status?: string
+  claude_pr_url?: string
+  claude_summary?: string
+  claude_error?: string
 }
 
 interface UserRow {
@@ -59,6 +64,27 @@ const STATUS_COLORS: Record<string, string> = {
   new: 'bg-red-100 text-red-700',
   seen: 'bg-yellow-100 text-yellow-700',
   resolved: 'bg-green-100 text-green-700',
+}
+
+// תיקון אוטומטי (convex/claude.ts) — בממשק מוצג כ"צוות הפיתוח"
+const CLAUDE_LABELS: Record<string, string> = {
+  queued: 'ממתין לשליחה',
+  sending: 'נשלח לפיתוח…',
+  sent: 'התקבל בפיתוח',
+  working: 'בטיפול הפיתוח',
+  pr_open: 'תיקון מוכן לבדיקה',
+  failed: 'נדרשת הבהרה',
+  error: 'שגיאת שליחה',
+}
+
+const CLAUDE_COLORS: Record<string, string> = {
+  queued: 'bg-slate-100 text-slate-700',
+  sending: 'bg-slate-100 text-slate-700',
+  sent: 'bg-blue-100 text-blue-700',
+  working: 'bg-blue-100 text-blue-700',
+  pr_open: 'bg-purple-100 text-purple-700',
+  failed: 'bg-orange-100 text-orange-700',
+  error: 'bg-red-100 text-red-700',
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -110,6 +136,10 @@ export default function AdminPage() {
         admin_note: r.admin_note,
         created_at: r.created_at,
         profile: r.user_name ? { display_name: r.user_name, city: '' } : null,
+        claude_status: r.claude_status,
+        claude_pr_url: r.claude_pr_url,
+        claude_summary: r.claude_summary,
+        claude_error: r.claude_error,
       }))
       setFeedback(statusFilter !== 'all' ? mapped.filter(f => f.status === statusFilter) : mapped)
     } finally {
@@ -168,6 +198,19 @@ export default function AdminPage() {
     setFeedback(prev => prev.map(f => f.id === id ? { ...f, status: status as FeedbackRow['status'] } : f))
   }
 
+  const sendToClaude = async (id: string) => {
+    setBusyId(id)
+    try {
+      await convex.mutation(api.claude.sendToClaude, { feedbackId: id as Id<'feedback'> })
+      setFeedback(prev => prev.map(f => f.id === id ? { ...f, claude_status: 'queued', claude_error: undefined } : f))
+      toast.success('הדיווח נשלח לצוות הפיתוח')
+    } catch {
+      toast.error('שגיאה בשליחה לפיתוח')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const saveNote = async (id: string) => {
     const row = feedback.find(f => f.id === id)
     await convex.mutation(api.feedback.setStatus, {
@@ -217,10 +260,16 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold text-[#0A0A0A]">לוח ניהול</h1>
           <p className="text-sm text-[#737373]">ניהול מערכת מצאתי אותך</p>
         </div>
+        <Link
+          href="/admin/dev-tasks"
+          className="ms-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0A0A0A] text-white text-sm hover:bg-[#222]"
+        >
+          <Wrench className="w-4 h-4" /> משימות פיתוח
+        </Link>
         <Button
           variant="outline"
           size="sm"
-          className="ms-auto rounded-xl"
+          className="rounded-xl"
           onClick={() => tab === 'approvals' ? loadApprovals() : tab === 'feedback' ? loadFeedback() : loadUsers()}
         >
           <RefreshCw className={cn('w-4 h-4', loadingData && 'animate-spin')} />
@@ -413,6 +462,11 @@ export default function AdminPage() {
                       <span className="text-xs bg-[#F0F0F0] px-2 py-0.5 rounded-full text-[#737373]">
                         {CATEGORY_LABELS[f.category] ?? f.category}
                       </span>
+                      {f.claude_status && (
+                        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1', CLAUDE_COLORS[f.claude_status])}>
+                          <Wrench className="w-3 h-3" /> {CLAUDE_LABELS[f.claude_status] ?? f.claude_status}
+                        </span>
+                      )}
                       {f.profile?.display_name && (
                         <span className="text-xs text-[#737373]">
                           👤 {f.profile.display_name}
@@ -468,6 +522,41 @@ export default function AdminPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Claude */}
+                    <div>
+                      <p className="text-xs font-semibold text-[#737373] mb-2 uppercase tracking-wide flex items-center gap-1">
+                        <Wrench className="w-3.5 h-3.5" /> העברה לפיתוח
+                      </p>
+                      <div className="space-y-2">
+                        {f.claude_status && (
+                          <span className={cn('inline-block text-xs px-2 py-0.5 rounded-full font-medium', CLAUDE_COLORS[f.claude_status])}>
+                            {CLAUDE_LABELS[f.claude_status] ?? f.claude_status}
+                          </span>
+                        )}
+                        {f.claude_summary && (
+                          <p className="text-sm text-[#0A0A0A] whitespace-pre-wrap">{f.claude_summary}</p>
+                        )}
+                        {f.claude_error && (
+                          <p className="text-xs text-red-600">{f.claude_error}</p>
+                        )}
+                        <div className="flex gap-2 flex-wrap">
+                          {f.claude_pr_url && (
+                            <a href={f.claude_pr_url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-purple-600 text-white hover:bg-purple-700">
+                              <GitPullRequest className="w-3.5 h-3.5" /> פתח PR לבדיקה
+                            </a>
+                          )}
+                          <button
+                            onClick={() => sendToClaude(f.id)}
+                            disabled={busyId === f.id || f.claude_status === 'queued' || f.claude_status === 'sending'}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border border-[#E5E5E5] text-[#737373] hover:border-[#0A0A0A] disabled:opacity-50"
+                          >
+                            <Wrench className="w-3.5 h-3.5" /> {f.claude_status ? 'שלח שוב לפיתוח' : 'שלח לפיתוח'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Status update */}
                     <div>
