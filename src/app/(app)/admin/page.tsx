@@ -398,7 +398,7 @@ export default function AdminPage() {
           ) : filteredFeedback.length === 0 ? (
             <div className="text-center py-12 text-[#737373]">
               <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p>אין משובים</p>
+              <p>אין דיווחים עדיין</p>
             </div>
           ) : (
             filteredFeedback.map(f => (
