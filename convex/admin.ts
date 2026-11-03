@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { mutation } from './_generated/server'
+import { mutation, internalMutation } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import type { MutationCtx } from './_generated/server'
 import { requireAdmin, getProfile } from './helpers'
@@ -119,5 +119,20 @@ export const setUserAdmin = mutation({
     if (!profile) throw new Error('פרופיל לא נמצא')
     await ctx.db.patch('profiles', profile._id, { is_admin: args.is_admin, updated_at: new Date().toISOString() })
     return null
+  },
+})
+
+// הענקה/ביטול של הרשאת מנהל לפי אימייל (מנהל יכול גם לשלוח דיווחים לתיקון אוטומטי).
+// הרצה: npx convex run admin:setAdminByEmail '{"email":"user@example.com"}'
+export const setAdminByEmail = internalMutation({
+  args: { email: v.string(), isAdmin: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase()
+    const user = await ctx.db.query('users').withIndex('email', (q) => q.eq('email', email)).unique()
+    if (!user) return { ok: false, reason: 'user_not_found' }
+    const profile = await getProfile(ctx, user._id)
+    if (!profile) return { ok: false, reason: 'profile_not_found' }
+    await ctx.db.patch('profiles', profile._id, { is_admin: args.isAdmin ?? true })
+    return { ok: true, userId: String(user._id), is_admin: args.isAdmin ?? true }
   },
 })
