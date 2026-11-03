@@ -4,24 +4,28 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useTranslation } from '@/lib/i18n'
 import { fetchProfile, setProfileApproval, deleteUserAccount } from '@/lib/api/profiles'
 import { sendLike, removeLike, isLiked } from '@/lib/api/likes'
 import { SendMessageDialog } from '@/components/profile/SendMessageDialog'
-import { StickyNameBar } from '@/components/profile/StickyNameBar'
 import { calcAgeFromProfile, formatHeight } from '@/lib/utils/age'
 import {
-  Shield, MapPin, Heart, Star, MessageCircle,
-  ArrowLeft, ArrowRight,
-  Languages, Home, Sparkles, CalendarHeart, Sun,
-  CheckCircle2, X, Trash2, ShieldCheck
+  MapPin, Heart, MessageCircle, ChevronLeft, ChevronRight, Cake, ArrowUpDown,
+  Gem, Users, Plane, Check, X, CheckCircle2, Trash2, ShieldCheck, BookOpen,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { photoObjectPosition } from '@/lib/faceDetection'
 import { useAuth } from '@/components/shared/AuthProvider'
 import type { DbProfile, DbPhoto } from '@/lib/types/database'
+
+// ─── Theme ──────────────────────────────────────────────────────────────────
+// כחול רקע, נייבי לכרטיסים, זהב לכותרות — לפי עיצוב "סיפור"
+const GOLD = '#F2C76A'
+const BG = 'bg-[#2E4F91]'
+const CARD = 'bg-[#16244F]'
+const PILL = 'bg-[#1B2B5E]'
+const MUTED = 'text-[#B8C4E6]'
 
 // ─── Label Maps ─────────────────────────────────────────────────────────────
 
@@ -50,12 +54,6 @@ const RESIDENCE_INTENT: Record<string, string> = {
   abroad_return_later: '⏳ בחו"ל, חוזר/ת בעוד כמה שנים',
   abroad_stay: '🌍 בחו"ל ונשאר',
   flexible: '💕 תלוי בזוגיות',
-}
-
-const MARITAL_STATUS: Record<string, string> = {
-  single: 'רווק/ה',
-  divorced: 'גרוש/ה',
-  widowed: 'אלמן/ה',
 }
 
 const SEEKING_STATUS: Record<string, string> = {
@@ -122,35 +120,102 @@ const LANGUAGES: Record<string, string> = {
   buh: '🇺🇿 בוכרית', ka: '🇬🇪 גרוזינית',
 }
 
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+// התוויות במפות כוללות אימוג'י בהתחלה; העיצוב החדש נקי מהם
+const plain = (s: string) => s.replace(/^[^\p{L}\p{N}]+/u, '').trim()
+
+const labelsOf = (values: string[] | undefined, map: Record<string, string>) =>
+  (values ?? []).map(v => map[v]).filter(Boolean).map(plain)
+
+const MARITAL_BY_GENDER: Record<string, { f: string; m: string }> = {
+  single: { f: 'רווקה', m: 'רווק' },
+  divorced: { f: 'גרושה', m: 'גרוש' },
+  widowed: { f: 'אלמנה', m: 'אלמן' },
+}
+
+const SHARED_RESIDENCE: Record<string, string> = {
+  israel_stay: 'שניכם בארץ ולא זזים',
+  israel_maybe_reloc: 'שניכם פתוחים לרילוקיישן',
+  abroad_return_soon: 'שניכם בחו"ל וחוזרים בקרוב',
+  abroad_return_later: 'שניכם בחו"ל וחוזרים בעוד כמה שנים',
+  abroad_stay: 'שניכם בחו"ל ונשארים',
+  flexible: 'שניכם גמישים וזה תלוי בזוגיות',
+}
+
+function joinHe(items: string[]) {
+  if (items.length <= 1) return items.join('')
+  return `${items.slice(0, -1).join(', ')} ו${items[items.length - 1]}`
+}
+
+// מה משותף לצופה ולפרופיל שמוצג
+function sharedWith(me: DbProfile | undefined, other: DbProfile): string[] {
+  if (!me) return []
+  const out: string[] = []
+  const common = (a?: string[], b?: string[]) => (a ?? []).filter(x => (b ?? []).includes(x))
+
+  const goals = common(me.relationship_goal, other.relationship_goal)
+  if (goals[0]) out.push(`שניכם מחפשים ${plain(RELATIONSHIP_GOAL[goals[0]] ?? '')}`)
+
+  const res = common(me.residence_intent, other.residence_intent)
+  if (res[0] && SHARED_RESIDENCE[res[0]]) out.push(SHARED_RESIDENCE[res[0]])
+
+  const hobbies = common(me.hobbies, other.hobbies).map(h => plain(HOBBY_LABELS[h] ?? h)).slice(0, 3)
+  if (hobbies.length) out.push(`שניכם אוהבים ${joinHe(hobbies)}`)
+
+  if (me.religious_level && me.religious_level === other.religious_level) {
+    out.push(`שניכם ${RELIGIOUS_LEVEL_PLAIN[me.religious_level] ?? me.religious_level}`)
+  }
+  return out.slice(0, 4).filter(s => s.trim().length > 6)
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function SectionTitle({ icon: Icon, children }: { icon?: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="font-bold text-2xl mb-3" style={{ color: GOLD }}>{children}</h3>
+}
+
+function Pill({ children, highlight }: { children: React.ReactNode; highlight?: boolean }) {
   return (
-    <div className="flex items-center gap-2 mb-3">
-      {Icon && <Icon className="w-4 h-4 text-[rgba(23,20,17,0.65)]" />}
-      <h3 className="font-bold text-[#171411] text-sm">{children}</h3>
+    <span
+      className={cn(
+        'text-base px-5 py-3 rounded-full font-medium border',
+        highlight ? 'bg-[#F2C76A] text-[#16244F] border-transparent font-bold rounded-2xl'
+          : `${PILL} text-white border-[#2E4380]`
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+function Pills({ labels }: { labels: string[] }) {
+  if (!labels.length) return null
+  return (
+    <div className="flex flex-wrap gap-2.5">
+      {labels.map(l => <Pill key={l}>{l}</Pill>)}
     </div>
   )
 }
 
-function ChipRow({ values, map }: { values: string[]; map: Record<string, string> }) {
-  const labels = values.map(v => map[v]).filter(Boolean)
-  if (!labels.length) return null
+function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {labels.map(label => (
-        <span key={label} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
-          {label}
-        </span>
-      ))}
+    <div className={cn(CARD, 'rounded-2xl p-3.5 border border-[#2E4380]/60')}>
+      <div className={cn('flex items-center gap-2 text-sm mb-1.5', MUTED)}>
+        <Icon className="w-4 h-4 text-[#F2C76A] shrink-0" />
+        {label}
+      </div>
+      <p className="font-bold text-white text-lg leading-snug">{value}</p>
     </div>
   )
 }
 
 // מדיה משובצת בין סקשנים בגוף הפרופיל
-function InlinePhoto({ photo, name }: { photo: DbPhoto; name: string }) {
+function InlinePhoto({ photo, name }: { photo?: DbPhoto; name: string }) {
+  if (!photo) return null
   return (
-    <div className="rounded-2xl overflow-hidden bg-[#EBE4D2] aspect-[4/3]">
+    <div className="rounded-3xl overflow-hidden bg-[#16244F] aspect-[4/5] border border-[#2E4380]/60">
       {photo.media_type === 'video' ? (
         <video src={photo.url} controls playsInline className="w-full h-full object-cover bg-black" />
       ) : photo.media_type === 'audio' ? (
@@ -165,12 +230,22 @@ function InlinePhoto({ photo, name }: { photo: DbPhoto; name: string }) {
   )
 }
 
-function OpenQuestion({ label, value }: { label: string; value: string }) {
+function OpenQuestion({ label, value }: { label: string; value?: string }) {
   if (!value?.trim()) return null
   return (
-    <div className="bg-[#EBE4D2] rounded-2xl p-4">
-      <p className="text-xs text-[#171411] mb-1.5 font-medium">{label}</p>
-      <p className="text-[#171411] text-sm leading-relaxed">{value}</p>
+    <div className={cn(PILL, 'rounded-3xl p-5')}>
+      <p className={cn('text-sm mb-2', MUTED)}>{label}</p>
+      <p className="text-white text-lg leading-relaxed">{value}</p>
+    </div>
+  )
+}
+
+function FunQuestion({ label, value }: { label: string; value?: string }) {
+  if (!value?.trim()) return null
+  return (
+    <div className="bg-[#F2C76A] rounded-3xl p-5 text-[#16244F]">
+      <p className="text-sm font-bold mb-2">שאלת כיף · {label}</p>
+      <p className="text-3xl font-black leading-tight">{value}</p>
     </div>
   )
 }
@@ -184,7 +259,7 @@ const APPROVAL_LABELS: Record<string, { label: string; className: string }> = {
 }
 
 export default function ProfilePage() {
-  const { t, isRTL } = useTranslation()
+  const { isRTL } = useTranslation()
   const { user } = useAuth()
   const params = useParams()
   const router = useRouter()
@@ -192,16 +267,16 @@ export default function ProfilePage() {
 
   const isOwnProfile = !!user && userId === user.id
   const isAdmin = (user?.profile as unknown as Record<string, unknown>)?.is_admin === true
+  const me = user?.profile as unknown as DbProfile | undefined
 
   const [profile, setProfile] = useState<DbProfile | null>(null)
   const [photos, setPhotos] = useState<DbPhoto[]>([])
   const [loading, setLoading] = useState(true)
   const [liked, setLiked] = useState(false)
-  const [superLiked, setSuperLiked] = useState(false)
   const [messagingOpen, setMessagingOpen] = useState(false)
   const [adminBusy, setAdminBusy] = useState(false)
 
-  const BackArrow = isRTL ? ArrowRight : ArrowLeft
+  const BackChevron = isRTL ? ChevronRight : ChevronLeft
 
   useEffect(() => {
     fetchProfile(userId).then(data => {
@@ -220,11 +295,10 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto pb-20 md:pb-6 animate-pulse">
-        <div className="m-4 h-[420px] bg-[#EBE4D2] rounded-3xl" />
-        <div className="px-5 pt-5 space-y-4">
-          <div className="h-8 bg-[#EBE4D2] rounded w-1/2" />
-          <div className="h-12 bg-[#EBE4D2] rounded-2xl" />
+      <div className={cn(BG, 'min-h-screen animate-pulse')}>
+        <div className="max-w-2xl mx-auto">
+          <div className="h-16 bg-[#0A1233]" />
+          <div className="m-4 aspect-[4/5] bg-[#16244F] rounded-3xl" />
         </div>
       </div>
     )
@@ -241,17 +315,42 @@ export default function ProfilePage() {
     )
   }
 
+  const female = profile.gender === 'female'
+  const g = (f: string, m: string) => (female ? f : m)
+
   const age = calcAgeFromProfile(profile)
-  const photoUrl = photos[0]?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/600/800`
+  const firstPhoto = photos[0]
+  const photoUrl = firstPhoto?.url ?? `https://picsum.photos/seed/${profile.user_id}-1/600/800`
   const oq = profile.open_questions ?? {}
   const restPhotos = photos.slice(1)
+  const shared = isOwnProfile ? [] : sharedWith(me, profile)
+
+  const marital = profile.marital_status ? MARITAL_BY_GENDER[profile.marital_status]?.[female ? 'f' : 'm'] : undefined
+  const religious = profile.religious_level ? (RELIGIOUS_LEVEL_PLAIN[profile.religious_level] ?? profile.religious_level) : undefined
+  const residenceLabels = labelsOf(profile.residence_intent, RESIDENCE_INTENT)
+  const goalLabels = labelsOf(profile.relationship_goal, RELATIONSHIP_GOAL)
+  const hobbyLabels = (profile.hobbies ?? []).map(h => plain(HOBBY_LABELS[h] ?? h))
+  const languageLabels = labelsOf(profile.languages, LANGUAGES)
+  const fridayLabels = labelsOf(profile.friday_night, FRIDAY_NIGHT)
+  const saturdayLabels = labelsOf(profile.saturday_morning, SATURDAY_MORNING)
+  const romanticLabels = labelsOf(profile.romantic_vision, ROMANTIC_VISION)
+
+  const partnerPrefs = [
+    ...(profile.seeking_status ?? []).length
+      ? [(profile.seeking_status ?? []).map(s => SEEKING_STATUS[s]).filter(Boolean).join(' / ')]
+      : [],
+    ...(profile.age_pref_min > 0 && profile.age_pref_max > 0 ? [`גילאי ${profile.age_pref_min}–${profile.age_pref_max}`] : []),
+    ...(profile.seeking_with_kids && SEEKING_WITH_KIDS[profile.seeking_with_kids] ? [plain(SEEKING_WITH_KIDS[profile.seeking_with_kids])] : []),
+    ...(profile.distance_pref_km > 0
+      ? [profile.distance_pref_km >= DISTANCE_NO_LIMIT ? 'מכל העולם' : `עד ${profile.distance_pref_km} ק"מ ממני`]
+      : []),
+  ].filter(Boolean)
 
   const handleLike = async () => {
     if (!user) return
     if (liked) {
       await removeLike(user.id, profile.user_id)
       setLiked(false)
-      setSuperLiked(false)
     } else {
       await sendLike(user.id, profile.user_id, false)
       setLiked(true)
@@ -285,334 +384,294 @@ export default function ProfilePage() {
     }
   }
 
-  const handleSuperLike = async () => {
-    if (!user || superLiked) return
-    await sendLike(user.id, profile.user_id, true)
-    setLiked(true)
-    setSuperLiked(true)
-    toast('⭐ סופר לייק נשלח!', { description: `${profile.first_name} יקבל/תקבל התראה מיוחדת`, duration: 3000 })
-  }
+  const funQuestions: [string, string | undefined][] = [
+    ['שקר שאני אוהב/ת לספר', oq.lie],
+    ['אם היו עושים עליי סרט — שמו היה', oq.movie],
+    ['הדבר הכי לא הגיוני שעשיתי', oq.crazy],
+    ['מה הדבר הראשון שאנשים חושבים עליי?', oq.first_impression],
+    ['שיר שהוא נושא החיים שלי', oq.song],
+    ['ההרגל הכי מוזר שלי', oq.weird_habit],
+    ['הדבר הכי ילדותי שאני עדיין עושה', oq.childish],
+    ['אוכל שאני יכול/ה לאכול כל יום', oq.food],
+  ]
 
-  const actionButtons = (
-    <>
-      <Button
-        className={cn('flex-1 h-12 rounded-2xl font-bold transition-all',
-          liked ? 'bg-[#B8472A] text-white hover:bg-[#7A2E18]'
-            : 'bg-[#EBE4D2] text-[#171411] hover:bg-[#B8472A] hover:text-white'
-        )}
-        onClick={handleLike}
-      >
-        <Heart className={cn('w-4 h-4 me-2', liked && 'fill-white')} />
-        {liked ? '❤️ לייקת!' : t.common.like}
-      </Button>
-      <Button
-        className="flex-1 h-12 bg-[#171411] hover:bg-[#2A2520] text-[#F2EDDF] rounded-2xl font-bold"
-        onClick={() => setMessagingOpen(true)}
-      >
-        <MessageCircle className="w-4 h-4 me-2" />
-        {t.common.message}
-      </Button>
-      <Button
-        variant="outline"
-        className={cn('w-12 h-12 rounded-2xl p-0 transition-all border-[rgba(23,20,17,0.15)]',
-          superLiked ? 'bg-[#171411] text-[#F2EDDF] border-[#171411]' : 'text-[#171411] hover:bg-[rgba(23,20,17,0.06)]'
-        )}
-        onClick={handleSuperLike} title={t.common.super_like}
-      >
-        <Star className={cn('w-5 h-5', superLiked ? 'fill-[#F2EDDF]' : '')} />
-      </Button>
-    </>
-  )
+  const bio = oq.bio || profile.bio
+  const hasMoreAbout = oq.seeking || oq.dealbreaker || oq.work || oq.loves || oq.strength || oq.future_self || oq.future_us
 
   return (
-    <div className="max-w-2xl mx-auto pb-20 md:pb-6">
-      {/* Back button */}
-      <div className="p-4 pt-3">
-        <Button variant="ghost" asChild size="sm" className="rounded-2xl text-[#171411]">
-          <Link href={isOwnProfile ? '/profile/me' : '/discover'}>
-            <BackArrow className="w-4 h-4 me-2" />
-            {t.common.back}
+    <div className={cn(BG, 'min-h-screen text-white', isOwnProfile ? 'pb-20 md:pb-6' : 'pb-64')}>
+      {/* Header */}
+      <div className="sticky top-0 z-30 bg-[#0A1233] border-b-2 border-[#2E4380]/70">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Link
+            href={isOwnProfile ? '/profile/me' : '/discover'}
+            aria-label="חזרה"
+            className="w-14 h-14 rounded-full bg-[#16244F] border-2 border-[#2E4380] flex items-center justify-center shrink-0"
+          >
+            <BackChevron className="w-6 h-6 text-white" />
           </Link>
-        </Button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2.5">
+              <h1 className="text-3xl font-black truncate" style={{ color: GOLD }}>{profile.first_name}</h1>
+              {age != null && <span className="text-3xl font-bold text-white">{age}</span>}
+            </div>
+            {profile.is_online && (
+              <p className={cn('flex items-center gap-2 text-base', MUTED)}>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                {g('מחוברת עכשיו', 'מחובר עכשיו')}
+              </p>
+            )}
+          </div>
+          <img src="/icon-192.png" alt="" className="w-14 h-14 rounded-xl shrink-0" />
+        </div>
       </div>
 
-      {/* Admin bar */}
-      {isAdmin && !isOwnProfile && (
-        <div className="mx-4 mb-4 bg-white border border-[#E5E5E5] rounded-2xl p-3 flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 me-auto">
-            <ShieldCheck className="w-4 h-4 text-[#7C3AED]" />
-            <span className="text-sm font-bold text-[#171411]">ניהול</span>
-            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
-              APPROVAL_LABELS[profile.approval_status]?.className ?? 'bg-gray-100 text-gray-600')}>
-              {APPROVAL_LABELS[profile.approval_status]?.label ?? profile.approval_status}
-            </span>
-          </div>
-          {profile.approval_status !== 'approved' && (
-            <button
-              onClick={() => handleAdminApproval('approved')}
-              disabled={adminBusy}
-              className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />אשר
-            </button>
-          )}
-          {profile.approval_status !== 'rejected' && (
-            <button
-              onClick={() => handleAdminApproval('rejected')}
-              disabled={adminBusy}
-              className="h-9 px-4 rounded-xl border border-[#E5E5E5] text-[#B8472A] hover:bg-red-50 text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <X className="w-4 h-4" />דחה
-            </button>
-          )}
-          <button
-            onClick={handleAdminDelete}
-            disabled={adminBusy}
-            className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />מחק משתמש
-          </button>
-        </div>
-      )}
-
-      <div className="px-5 pt-5 space-y-5">
-        {/* Name & basic info */}
-        <div>
-          <StickyNameBar
-            name={`${profile.first_name} ${profile.last_name[0]}.`}
-            age={age}
-            verified={profile.is_verified}
-            photo={photos.find(p => p.media_type === 'image') ?? null}
-          />
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="font-serif text-3xl font-black text-[#171411] tracking-tight">
-              {profile.first_name} {profile.last_name[0]}.
-            </h1>
-            {age != null && <span className="text-2xl font-light text-[#171411]">{age}</span>}
-            {profile.is_verified && <Shield className="w-5 h-5 text-blue-400 fill-blue-400" />}
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
-            {profile.height_cm && (
-              <span className="text-[#171411] text-sm">{formatHeight(profile.height_cm)}</span>
-            )}
-            {profile.religious_level && (RELIGIOUS_LEVEL_PLAIN[profile.religious_level] ?? profile.religious_level) && (
-              <span className="text-[#171411] text-sm">
-                {RELIGIOUS_LEVEL_PLAIN[profile.religious_level] ?? profile.religious_level}
+      <div className="max-w-2xl mx-auto px-4 pt-4 pb-6 space-y-6">
+        {/* Admin bar */}
+        {isAdmin && !isOwnProfile && (
+          <div className="bg-white border border-[#E5E5E5] rounded-2xl p-3 flex items-center gap-2 flex-wrap text-[#171411]">
+            <div className="flex items-center gap-2 me-auto">
+              <ShieldCheck className="w-4 h-4 text-[#7C3AED]" />
+              <span className="text-sm font-bold">ניהול</span>
+              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+                APPROVAL_LABELS[profile.approval_status]?.className ?? 'bg-gray-100 text-gray-600')}>
+                {APPROVAL_LABELS[profile.approval_status]?.label ?? profile.approval_status}
               </span>
-            )}
-            {profile.marital_status && (
-              <span className="text-[#171411] text-sm">{MARITAL_STATUS[profile.marital_status]}</span>
-            )}
-            {profile.children_count > 0 && (
-              <span className="text-[#171411] text-sm">
-                👶 {profile.children_count === 1 ? 'ילד אחד' : `${profile.children_count} ילדים`}
-              </span>
-            )}
-            {profile.city && (
-              <span className="text-[#171411] text-sm flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {profile.city}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Relationship goals + partner preferences */}
-        {(profile.relationship_goal?.length > 0 || profile.children_future ||
-          profile.seeking_status?.length > 0 || profile.seeking_with_kids ||
-          (profile.age_pref_min > 0 && profile.age_pref_max > 0)) && (
-          <div>
-            <SectionTitle icon={CalendarHeart}>מחפש/ת</SectionTitle>
-            <div className="space-y-3">
-              {profile.relationship_goal?.length > 0 && (
-                <ChipRow values={profile.relationship_goal} map={RELATIONSHIP_GOAL} />
-              )}
-              {profile.children_future && (
-                <div>
-                  <p className="text-xs text-[#171411] mb-1.5">ילדים בעתיד</p>
-                  <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium inline-block">
-                    {CHILDREN_FUTURE[profile.children_future]}
-                  </span>
-                </div>
-              )}
-              {(profile.seeking_status?.length > 0 || profile.seeking_with_kids ||
-                (profile.age_pref_min > 0 && profile.age_pref_max > 0)) && (
-                <div>
-                  <p className="text-xs text-[#171411] mb-1.5">ההעדפות שלי לבן/בת הזוג</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(profile.seeking_status ?? []).map(s => SEEKING_STATUS[s]).filter(Boolean).map(label => (
-                      <span key={label} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
-                        {label}
-                      </span>
-                    ))}
-                    {profile.seeking_with_kids && SEEKING_WITH_KIDS[profile.seeking_with_kids] && (
-                      <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
-                        {SEEKING_WITH_KIDS[profile.seeking_with_kids]}
-                      </span>
-                    )}
-                    {profile.age_pref_min > 0 && profile.age_pref_max > 0 && (
-                      <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
-                        🎂 גילאי {profile.age_pref_min}–{profile.age_pref_max}
-                      </span>
-                    )}
-                    {profile.distance_pref_km > 0 && (
-                      <span className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">
-                        {profile.distance_pref_km >= DISTANCE_NO_LIMIT ? '🌍 מכל העולם' : `📍 עד ${profile.distance_pref_km} ק"מ ממני`}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
+            {profile.approval_status !== 'approved' && (
+              <button
+                onClick={() => handleAdminApproval('approved')}
+                disabled={adminBusy}
+                className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" />אשר
+              </button>
+            )}
+            {profile.approval_status !== 'rejected' && (
+              <button
+                onClick={() => handleAdminApproval('rejected')}
+                disabled={adminBusy}
+                className="h-9 px-4 rounded-xl border border-[#E5E5E5] text-[#B8472A] hover:bg-red-50 text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />דחה
+              </button>
+            )}
+            <button
+              onClick={handleAdminDelete}
+              disabled={adminBusy}
+              className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />מחק משתמש
+            </button>
+          </div>
+        )}
+
+        {/* Main photo */}
+        <div className="rounded-3xl overflow-hidden bg-[#16244F] aspect-[4/5] border border-[#2E4380]/60">
+          <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(firstPhoto) }} />
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-3 gap-3">
+          {age != null && <Stat icon={Cake} label="גיל" value={String(age)} />}
+          {profile.height_cm && <Stat icon={ArrowUpDown} label="גובה" value={formatHeight(profile.height_cm)} />}
+          {profile.city && <Stat icon={MapPin} label="מיקום" value={profile.city} />}
+          {marital && <Stat icon={Gem} label="סטטוס" value={marital} />}
+          {profile.children_count > 0 && (
+            <Stat icon={Users} label="ילדים" value={profile.children_count === 1 ? 'ילד אחד' : `${profile.children_count} ילדים`} />
+          )}
+          {religious && <Stat icon={BookOpen} label="דתיות" value={religious} />}
+          {residenceLabels[0] && <Stat icon={Plane} label="כוונות מגורים" value={residenceLabels[0]} />}
+        </div>
+
+        {/* Shared */}
+        {shared.length > 0 && (
+          <div className={cn(CARD, 'rounded-3xl p-5 border-2 border-[#F2C76A]')}>
+            <div className="flex items-center gap-2.5 mb-4">
+              <Heart className="w-5 h-5 fill-[#F2C76A] text-[#F2C76A]" />
+              <h3 className="font-bold text-xl" style={{ color: GOLD }}>מה משותף לכם</h3>
+            </div>
+            <ul className="space-y-3">
+              {shared.map(s => (
+                <li key={s} className="flex items-center gap-3 text-lg">
+                  <Check className="w-5 h-5 text-[#F2C76A] shrink-0" />
+                  {s}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
         {/* Bio */}
-        {(oq.bio || profile.bio) && (
+        {bio && (
           <div>
-            <SectionTitle>{t.profile.about}</SectionTitle>
-            <p className="text-[#171411] leading-relaxed text-sm">{oq.bio || profile.bio}</p>
+            <SectionTitle>קצת עליי</SectionTitle>
+            <p className={cn('text-xl leading-loose', MUTED)}>{bio}</p>
           </div>
         )}
 
-        {/* Key open questions */}
-        {(oq.seeking || oq.dealbreaker || oq.work) && (
+        {/* Looking for */}
+        {(goalLabels.length > 0 || profile.children_future) && (
+          <div>
+            <SectionTitle>{g('מה אני מחפשת', 'מה אני מחפש')}</SectionTitle>
+            <div className="flex flex-wrap gap-2.5">
+              {goalLabels.map((l, i) => <Pill key={l} highlight={i === 0}>{l}</Pill>)}
+            </div>
+            {profile.children_future && CHILDREN_FUTURE[profile.children_future] && (
+              <p className={cn('text-lg mt-4', MUTED)}>
+                ילדים בעתיד: {plain(CHILDREN_FUTURE[profile.children_future])}
+              </p>
+            )}
+          </div>
+        )}
+
+        <InlinePhoto photo={restPhotos[0]} name={profile.first_name} />
+
+        {/* Quote */}
+        {oq.quote?.trim() && (
+          <div className={cn(CARD, 'rounded-3xl p-7 text-center')}>
+            <p className={cn('text-base font-bold mb-4', MUTED)}>משפט לחיים</p>
+            <p className="text-3xl font-black leading-snug" style={{ color: GOLD }}>”{oq.quote}”</p>
+            {!isOwnProfile && (
+              <button
+                onClick={() => setMessagingOpen(true)}
+                className="mt-6 inline-flex items-center gap-3 px-7 h-14 rounded-full border-2 border-[#2E4380] text-white font-bold text-lg"
+              >
+                <MessageCircle className="w-5 h-5" />
+                להגיב על זה
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Shabbat */}
+        {(fridayLabels.length > 0 || saturdayLabels.length > 0) && (
+          <div>
+            <SectionTitle>השבת שלי</SectionTitle>
+            <div className="space-y-4">
+              {fridayLabels.length > 0 && (
+                <div className="flex gap-6 items-baseline">
+                  <span className={cn('text-lg w-28 shrink-0', MUTED)}>שישי בערב</span>
+                  <span className="text-xl">{fridayLabels.join(' · ')}</span>
+                </div>
+              )}
+              {saturdayLabels.length > 0 && (
+                <div className="flex gap-6 items-baseline">
+                  <span className={cn('text-lg w-28 shrink-0', MUTED)}>שבת בבוקר</span>
+                  <span className="text-xl">{saturdayLabels.join(' · ')}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Romantic */}
+        {romanticLabels.length > 0 && (
+          <div>
+            <SectionTitle>רומנטי בעיניי</SectionTitle>
+            <Pills labels={romanticLabels} />
+          </div>
+        )}
+
+        <InlinePhoto photo={restPhotos[1]} name={profile.first_name} />
+
+        {/* More about */}
+        {hasMoreAbout && (
           <div className="space-y-3">
+            <SectionTitle>עוד עליי</SectionTitle>
             <OpenQuestion label="מה אני מחפש/ת בזוגיות?" value={oq.seeking} />
             <OpenQuestion label="הדיל ברייקר שלי" value={oq.dealbreaker} />
             <OpenQuestion label="מה אני עושה בחיים?" value={oq.work} />
-          </div>
-        )}
-
-        {/* התמונה הראשונה — מוצגת רק אחרי המידע העיקרי */}
-        <div className="relative h-[420px] md:h-[520px] rounded-3xl overflow-hidden bg-[#EBE4D2]">
-          <img src={photoUrl} alt={profile.first_name} className="w-full h-full object-cover" style={{ objectPosition: photoObjectPosition(photos[0]) }} />
-
-          <div className="absolute bottom-4 start-4 end-4 flex items-end justify-between">
-            <div className="flex flex-col gap-2">
-              {profile.is_online && (
-                <div className="flex items-center gap-1.5 bg-green-500/20 backdrop-blur-sm border border-green-400/30 px-3 py-1 rounded-full w-fit">
-                  <div className="w-2 h-2 bg-green-400 rounded-full" />
-                  <span className="text-xs text-white font-medium">{t.profile.online}</span>
-                </div>
-              )}
-              {profile.subscription_tier !== 'free' && (
-                <Badge className="bg-[#2E5A7C] text-white border-0 text-xs w-fit">
-                  {profile.subscription_tier === 'platinum' ? '💎 Platinum' : '✨ Gold'}
-                </Badge>
-              )}
-            </div>
-            {profile.is_verified && (
-              <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-blue-300 fill-blue-300" />
-                <span className="text-xs text-white font-medium">{t.profile.verified}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Lifestyle: friday / saturday / romantic */}
-        {(profile.friday_night?.length > 0 || profile.saturday_morning?.length > 0 || profile.romantic_vision?.length > 0) && (
-          <div>
-            <SectionTitle icon={Sun}>אורח חיים</SectionTitle>
-            <div className="space-y-3">
-              {profile.friday_night?.length > 0 && (
-                <div>
-                  <p className="text-xs text-[#171411] mb-1.5">שישי בערב</p>
-                  <ChipRow values={profile.friday_night} map={FRIDAY_NIGHT} />
-                </div>
-              )}
-              {profile.saturday_morning?.length > 0 && (
-                <div>
-                  <p className="text-xs text-[#171411] mb-1.5">שבת בבוקר</p>
-                  <ChipRow values={profile.saturday_morning} map={SATURDAY_MORNING} />
-                </div>
-              )}
-              {profile.romantic_vision?.length > 0 && (
-                <div>
-                  <p className="text-xs text-[#171411] mb-1.5">רומנטי בעיניי</p>
-                  <ChipRow values={profile.romantic_vision} map={ROMANTIC_VISION} />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {restPhotos[0] && <InlinePhoto photo={restPhotos[0]} name={profile.first_name} />}
-
-        {/* Hobbies */}
-        {profile.hobbies?.length > 0 && (
-          <div>
-            <SectionTitle icon={Sparkles}>תחביבים</SectionTitle>
-            <div className="flex flex-wrap gap-2">
-              {profile.hobbies.map(h => (
-                <span key={h} className="bg-[#EBE4D2] text-[#171411] text-xs px-3 py-1.5 rounded-full font-medium">{HOBBY_LABELS[h] ?? h}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Languages + Residence */}
-        {(profile.languages?.length > 0 || profile.residence_intent?.length > 0) && (
-          <div className="space-y-4">
-            {profile.languages?.length > 0 && (
-              <div>
-                <SectionTitle icon={Languages}>שפות</SectionTitle>
-                <ChipRow values={profile.languages} map={LANGUAGES} />
-              </div>
-            )}
-            {profile.residence_intent?.length > 0 && (
-              <div>
-                <SectionTitle icon={Home}>כוונות מגורים</SectionTitle>
-                <ChipRow values={profile.residence_intent} map={RESIDENCE_INTENT} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {restPhotos[1] && <InlinePhoto photo={restPhotos[1]} name={profile.first_name} />}
-
-        {/* More open questions */}
-        {(oq.quote || oq.loves || oq.strength || oq.future_self || oq.future_us) && (
-          <div className="space-y-3">
-            <SectionTitle>עוד עליי</SectionTitle>
-            <OpenQuestion label="משפט לחיים" value={oq.quote} />
-            <OpenQuestion label="הנה כמה דברים שאני אוהב/ת" value={oq.loves} />
+            <OpenQuestion label="כמה דברים שאני אוהב/ת" value={oq.loves} />
             <OpenQuestion label="החוזקה הכי גדולה שלי" value={oq.strength} />
             <OpenQuestion label="איך אני רואה את העתיד שלי" value={oq.future_self} />
             <OpenQuestion label="איך אני רואה את העתיד שלנו" value={oq.future_us} />
           </div>
         )}
 
+        {/* Hobbies */}
+        {hobbyLabels.length > 0 && (
+          <div>
+            <SectionTitle>תחביבים</SectionTitle>
+            <Pills labels={hobbyLabels} />
+          </div>
+        )}
+
+        {/* Languages */}
+        {languageLabels.length > 0 && (
+          <div>
+            <SectionTitle>שפות</SectionTitle>
+            <p className={cn('text-xl leading-loose', MUTED)}>{languageLabels.join(' · ')}</p>
+          </div>
+        )}
+
+        {/* Residence */}
+        {residenceLabels.length > 0 && (
+          <div>
+            <SectionTitle>כוונות מגורים</SectionTitle>
+            <p className={cn('text-xl leading-loose', MUTED)}>{residenceLabels.join(' · ')}</p>
+          </div>
+        )}
+
+        {/* Partner preferences */}
+        {partnerPrefs.length > 0 && (
+          <div className={cn(CARD, 'rounded-3xl p-5 border border-[#2E4380]/60')}>
+            <h3 className="font-bold text-xl mb-4" style={{ color: GOLD }}>
+              {g('מה אני מחפשת בבן הזוג', 'מה אני מחפש בבת הזוג')}
+            </h3>
+            <div className="flex flex-wrap gap-2.5">
+              {partnerPrefs.map(p => (
+                <span key={p} className="bg-[#233470] text-white text-base px-4 py-2.5 rounded-xl">{p}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Fun questions */}
-        {(oq.lie || oq.movie || oq.crazy || oq.first_impression || oq.song || oq.weird_habit || oq.childish || oq.food) && (
+        {funQuestions.some(([, v]) => v?.trim()) && (
           <div className="space-y-3">
-            <SectionTitle>שאלות כיף 🎉</SectionTitle>
-            <OpenQuestion label="שקר שאני אוהב/ת לספר" value={oq.lie} />
-            <OpenQuestion label="אם היו עושים עליי סרט — שמו היה" value={oq.movie} />
-            <OpenQuestion label="הדבר הכי לא הגיוני שעשיתי" value={oq.crazy} />
-            <OpenQuestion label="מה הדבר הראשון שאנשים חושבים עליי?" value={oq.first_impression} />
-            <OpenQuestion label="שיר שהוא נושא החיים שלי" value={oq.song} />
-            <OpenQuestion label="ההרגל הכי מוזר שלי" value={oq.weird_habit} />
-            <OpenQuestion label="הדבר הכי ילדותי שאני עדיין עושה" value={oq.childish} />
-            <OpenQuestion label="אוכל שאני יכול/ה לאכול כל יום" value={oq.food} />
+            {funQuestions.map(([label, value]) => <FunQuestion key={label} label={label} value={value} />)}
           </div>
         )}
 
         {restPhotos.slice(2).map(p => <InlinePhoto key={p.id} photo={p} name={profile.first_name} />)}
-
-        {/* Action buttons — רק בסוף הפרופיל, למי שקרא עד הסוף */}
-        {!isOwnProfile && (
-          <div className="pt-2 border-t border-[rgba(23,20,17,0.10)]">
-            <p className="text-center text-sm text-[#171411] mb-3">
-              הגעת לסוף הפרופיל של {profile.first_name} — מה עכשיו?
-            </p>
-            <div className="flex gap-3">
-              {actionButtons}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Action bar — קבוע בתחתית, "הגעת לסוף הפרופיל" */}
+      {!isOwnProfile && (
+        <div className="fixed bottom-0 inset-x-0 md:ms-64 z-50 bg-[#0A1233] border-t-2 border-[#2E4380]/70">
+          <div className="max-w-2xl mx-auto px-4 pt-4 pb-6">
+            <p className={cn('text-center text-base mb-3', MUTED)}>הגעת לסוף הפרופיל של {profile.first_name}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => router.push('/discover')}
+                className="h-14 rounded-full border-2 border-[#2E4380] text-white font-bold text-lg flex items-center justify-center gap-2.5"
+              >
+                <X className="w-5 h-5" />
+                דלג
+              </button>
+              <button
+                onClick={handleLike}
+                className={cn(
+                  'h-14 rounded-full border-2 border-[#F2C76A] font-bold text-lg flex items-center justify-center gap-2.5',
+                  liked ? 'bg-[#F2C76A] text-[#16244F]' : 'bg-[#16244F]'
+                )}
+                style={liked ? undefined : { color: GOLD }}
+              >
+                <Heart className={cn('w-5 h-5', liked ? 'fill-[#16244F]' : 'fill-[#F2C76A]')} />
+                {liked ? 'אהבת' : 'אהבתי'}
+              </button>
+            </div>
+            <button
+              onClick={() => setMessagingOpen(true)}
+              className="mt-3 w-full h-16 rounded-full bg-[#F2C76A] text-[#16244F] font-black text-xl flex items-center justify-center gap-3"
+            >
+              <MessageCircle className="w-5 h-5" />
+              שלח הודעה יא גבר!
+            </button>
+          </div>
+        </div>
+      )}
 
       <SendMessageDialog
         open={messagingOpen}
